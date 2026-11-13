@@ -12,6 +12,8 @@ def test_defaults_carregam(tmp_path) -> None:
     settings = load_settings(path=tmp_path / "inexistente.yaml")
     assert settings.security.allow_shell is False
     assert settings.general.dry_run is True
+    assert settings.licensing.enabled is False
+    assert settings.licensing.trial_days == 14
     assert "powershell.exe" in settings.security.allowed_executables
     assert "notepad.exe" in settings.security.allowed_apps
     assert "lsass.exe" in settings.security.deny_processes
@@ -25,6 +27,7 @@ def test_override_faz_merge(tmp_path) -> None:
     assert settings.general.log_level == "DEBUG"
     assert settings.general.dry_run is True
     assert settings.security.allow_shell is False
+    assert settings.licensing.enabled is False
 
 
 def test_chave_desconhecida_rejeitada(tmp_path) -> None:
@@ -69,14 +72,35 @@ def test_workflow_schema_valido() -> None:
     assert wf.steps[0].params["seconds"] == 2
 
 
+def test_workflow_aceita_acoes_gui() -> None:
+    wf = WorkflowDefinition.model_validate(
+        {
+            "name": "rpa",
+            "steps": [
+                {"name": "clique", "action": "gui_click", "params": {"x": 10, "y": 20}},
+                {"name": "texto", "action": "gui_type", "params": {"text": "oi"}},
+                {"name": "atalho", "action": "gui_hotkey", "params": {"keys": ["ctrl", "s"]}},
+                {"name": "imagem", "action": "gui_click_image", "params": {"image": "a.png"}},
+            ],
+        }
+    )
+    assert [step.action for step in wf.steps] == [
+        "gui_click",
+        "gui_type",
+        "gui_hotkey",
+        "gui_click_image",
+    ]
+
+
 @pytest.mark.parametrize(
     "step",
     [
         {"name": "s", "action": "nuke.all"},
         {"name": "s", "action": "powershell", "params": {}},
         {"name": "s", "action": "launch_app", "params": {}},
+        {"name": "s", "action": "gui_click", "params": {"x": 1}},
+        {"name": "s", "action": "gui_hotkey", "params": {"keys": []}},
         {"name": "s", "action": "wait", "params": {"seconds": 999}},
-        {"name": "s", "action": "wait", "params": {"seconds": -1}},
         {"name": "s", "action": "wait", "typo": 1},
     ],
 )

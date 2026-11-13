@@ -9,6 +9,7 @@ from winbot.main import app
 
 ROOT = Path(__file__).parents[1]
 EXAMPLE = ROOT / "examples" / "demo.workflow.yaml"
+RPA_EXAMPLE = ROOT / "examples" / "rpa.workflow.yaml"
 BLOCKED = ROOT / "examples" / "bloqueado.workflow.yaml"
 
 
@@ -29,15 +30,46 @@ def test_dry_run_nao_executa_nada(mocker) -> None:
     sleep = mocker.patch("winbot.commands.workflow.time.sleep")
 
     wf = _load(EXAMPLE)
-    policy = SecuritySettings(allow_shell=False)
-    outcomes = [_execute_step(step, policy=policy, dry_run=True) for step in wf.steps]
-
+    outcomes = [
+        _execute_step(step, policy=SecuritySettings(allow_shell=False), dry_run=True)
+        for step in wf.steps
+    ]
     assert len(outcomes) == len(wf.steps)
     assert all(item.ok and not item.blocked for item in outcomes)
     proc.assert_not_called()
     popen.assert_not_called()
     enum.assert_not_called()
     sleep.assert_not_called()
+
+
+def test_acoes_gui_em_dry_run_nao_encostam_no_pyautogui(mocker) -> None:
+    mocker.patch("winbot.engine.windows_api.screen_size", return_value=(1920, 1080))
+    pag = mocker.patch("winbot.engine.gui._pyautogui")
+    wf = _load(RPA_EXAMPLE)
+    outcomes = [_execute_step(step, policy=SecuritySettings(), dry_run=True) for step in wf.steps]
+    assert all(item.ok for item in outcomes)
+    pag.assert_not_called()
+
+
+def test_hotkey_proibida_no_workflow_e_fail_closed() -> None:
+    from winbot.commands.workflow import StepOutcome
+
+    wf = WorkflowDefinition.model_validate(
+        {
+            "name": "perigoso",
+            "steps": [
+                {
+                    "name": "atalho",
+                    "action": "gui_hotkey",
+                    "params": {"keys": ["ctrl", "alt", "delete"]},
+                    "continue_on_error": True,
+                }
+            ],
+        }
+    )
+    outcome = _execute_step(wf.steps[0], policy=SecuritySettings(), dry_run=False)
+    assert isinstance(outcome, StepOutcome)
+    assert outcome.blocked is True
 
 
 def test_violacao_e_fail_closed_mesmo_com_continue_on_error() -> None:
@@ -54,10 +86,14 @@ def test_run_dry_run_padrao() -> None:
 
 
 def test_workflow_list() -> None:
-    result = CliRunner().invoke(app, ["workflow", "list"])
-    assert result.exit_code == 0
+    assert CliRunner().invoke(app, ["workflow", "list"]).exit_code == 0
 
 
 def test_workflow_inexistente() -> None:
-    result = CliRunner().invoke(app, ["workflow", "run", "nao_existe_xyz"])
-    assert result.exit_code == 1
+    assert CliRunner().invoke(app, ["workflow", "run", "nao_existe_xyz"]).exit_code == 1
+
+
+def test_license_command() -> None:
+    result = CliRunner().invoke(app, ["license"])
+    assert result.exit_code == 0
+    assert "HWID" in result.stdout

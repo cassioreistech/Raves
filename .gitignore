@@ -15,3 +15,8 @@ config/settings.local.yaml
 
 # Estado local do agente (OpenCode): nao e artefato do produto
 .opencode/
+
+# Chave privada de licenciamento — NUNCA versionar
+keys/
+*.license
+license.key

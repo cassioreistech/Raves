@@ -24,9 +24,10 @@ from winbot.core.config import (
     WorkflowStep,
     load_settings,
 )
+from winbot.core.licensing import LicenseError, check_license_or_raise
 from winbot.core.logger import logger
 from winbot.core.security import SecurityViolationError
-from winbot.engine import shell, windows_api
+from winbot.engine import gui, shell, windows_api
 
 app = typer.Typer(help="Gerencia e executa rotinas automatizadas (Workflows YAML).")
 console = Console()
@@ -77,6 +78,26 @@ def _execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool
             ok = windows_api.focus_window(str(params.get("title", "")), dry_run=dry_run)
             return StepOutcome(ok, "Janela focada" if ok else "Janela não encontrada")
 
+        if action == "gui_click":
+            detail = gui.click_at(int(params["x"]), int(params["y"]), dry_run=dry_run)
+            return StepOutcome(True, detail)
+
+        if action == "gui_click_image":
+            detail = gui.click_image(
+                str(params["image"]),
+                dry_run=dry_run,
+                timeout=float(params.get("timeout", 10)),
+            )
+            return StepOutcome(detail != "imagem não encontrada na tela", detail)
+
+        if action == "gui_type":
+            detail = gui.type_text_safe(str(params["text"]), dry_run=dry_run)
+            return StepOutcome(True, detail)
+
+        if action == "gui_hotkey":
+            detail = gui.hotkey([str(key) for key in params["keys"]], dry_run=dry_run)
+            return StepOutcome(True, detail)
+
         seconds = float(params.get("seconds", 1))
         if not dry_run:
             time.sleep(seconds)
@@ -118,11 +139,15 @@ def run_workflow(
         raise typer.Exit(code=2) from exc
 
     settings = load_settings()
+    if settings.licensing.enabled:
+        try:
+            check_license_or_raise()
+        except LicenseError as exc:
+            console.print(f"[bold red]Licença:[/bold red] {exc}")
+            raise typer.Exit(code=1) from exc
+
     console.print(
-        Panel(
-            f"[bold cyan]{wf.name}[/bold cyan]\n[dim]{wf.description}[/dim]",
-            expand=False,
-        )
+        Panel(f"[bold cyan]{wf.name}[/bold cyan]\n[dim]{wf.description}[/dim]", expand=False)
     )
     logger.info(f"Iniciando workflow: {wf.name} (dry_run={not apply})")
 

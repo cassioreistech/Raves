@@ -24,6 +24,11 @@ from winbot.core.security import SecurityViolationError
 _SHELL_METACHARS = "&|;<>^\n\r"
 
 
+def screen_size() -> tuple[int, int]:
+    """Largura e altura da tela primária, em pixels."""
+    return (win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1))
+
+
 def system_snapshot() -> dict[str, Any]:
     """Coleta identidade da máquina e contagem de processos. Nunca altera estado."""
     pids = win32process.EnumProcesses() or []
@@ -31,7 +36,7 @@ def system_snapshot() -> dict[str, Any]:
         "computer": win32api.GetComputerName(),
         "user": win32api.GetUserName(),
         "process_count": len(pids),
-        "screen": (win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)),
+        "screen": screen_size(),
     }
 
 

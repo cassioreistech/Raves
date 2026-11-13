@@ -17,7 +17,10 @@ dependencies = [
     "loguru>=0.7.2",
     "psutil>=5.9.8",
     "pywin32>=306; sys_platform == 'win32'",
-    "pywinauto>=0.6.8; sys_platform == 'win32'", # primário para automação GUI
+    "pywinauto>=0.6.8; sys_platform == 'win32'", # primário para automação GUI/UIA
+    "pyautogui>=0.9.54",                         # clique por coordenada/imagem, hotkeys
+    "pyperclip>=1.8.2",                          # type_text_safe via clipboard
+    "cryptography>=42.0.0",                      # licenciamento Ed25519
 ]
 
 [project.optional-dependencies]
@@ -30,7 +33,6 @@ dev = [
     "types-PyYAML>=6.0.12",
     "nuitka>=2.1.0",
 ]
-gui = ["pyautogui>=0.9.54"]                       # fallback opcional para clique por imagem
 
 [project.scripts]
 winbot = "winbot.main:app"

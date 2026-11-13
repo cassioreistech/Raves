@@ -32,3 +32,7 @@ security:
     - "Format-Volume"
     - "reg delete"
     - "Stop-Computer"
+licensing:
+  enabled: false         # LIGAR apenas no build de distribuição
+  trial_days: 14         # avaliação (spoofável; não é proteção real)
+  grace_days: 7          # tolerância para troca de hardware

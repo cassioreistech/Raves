@@ -57,12 +57,22 @@ class SecuritySettings(BaseModel):
     deny_patterns: list[str] = Field(default_factory=list)
 
 
+class LicensingSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Desligado em desenvolvimento; ligar apenas no build de distribuição.
+    enabled: bool = False
+    trial_days: int = 14
+    grace_days: int = 7
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     general: GeneralSettings = Field(default_factory=GeneralSettings)
     paths: PathSettings = Field(default_factory=PathSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
+    licensing: LicensingSettings = Field(default_factory=LicensingSettings)
 
     def workspace_path(self) -> Path:
         return Path(self.paths.workspace) if self.paths.workspace else Path.home() / "WinBot"
@@ -111,7 +121,17 @@ def create_user_config(path: Path | None = None) -> Path:
     return target
 
 
-WorkflowAction = Literal["powershell", "launch_app", "kill_process", "focus_window", "wait"]
+WorkflowAction = Literal[
+    "powershell",
+    "launch_app",
+    "kill_process",
+    "focus_window",
+    "wait",
+    "gui_click",
+    "gui_click_image",
+    "gui_type",
+    "gui_hotkey",
+]
 MAX_WAIT_SECONDS = 60.0
 
 
@@ -130,6 +150,9 @@ class WorkflowStep(BaseModel):
             "launch_app": "target",
             "kill_process": "name",
             "focus_window": "title",
+            "gui_click_image": "image",
+            "gui_type": "text",
+            "gui_hotkey": "keys",
         }
         if self.action in required and not self.params.get(required[self.action]):
             raise ValueError(f"ação '{self.action}' exige params.{required[self.action]}")
@@ -137,6 +160,14 @@ class WorkflowStep(BaseModel):
             seconds = float(self.params.get("seconds", 1))
             if not 0 <= seconds <= MAX_WAIT_SECONDS:
                 raise ValueError(f"params.seconds deve estar entre 0 e {MAX_WAIT_SECONDS}")
+        if self.action == "gui_click":
+            x, y = self.params.get("x"), self.params.get("y")
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                raise ValueError("ação 'gui_click' exige params.x e params.y numéricos")
+        if self.action == "gui_hotkey":
+            keys = self.params.get("keys")
+            if not isinstance(keys, list) or not keys:
+                raise ValueError("ação 'gui_hotkey' exige params.keys (lista não vazia)")
         return self
 
 

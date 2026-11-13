@@ -1,0 +1,19 @@
+name: RPA de exemplo
+description: Demonstra as acoes de GUI. Roda em dry-run por padrao; use --apply.
+# Para gui_click_image, aponte params.image para um PNG/JPG/BMP existente.
+# Exemplo: { name: Clique no botao, action: gui_click_image,
+#            params: { image: "assets/botao.png", timeout: 5 } }
+steps:
+  - name: Clique em coordenada validada
+    action: gui_click
+    params:
+      x: 640
+      y: 360
+  - name: Digitar via clipboard
+    action: gui_type
+    params:
+      text: "Ola, WinBot!"
+  - name: Salvar com atalho
+    action: gui_hotkey
+    params:
+      keys: [ctrl, s]

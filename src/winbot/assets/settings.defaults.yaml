@@ -29,3 +29,7 @@ security:
     - "Format-Volume"
     - "reg delete"
     - "Stop-Computer"
+licensing:
+  enabled: false
+  trial_days: 14
+  grace_days: 7
