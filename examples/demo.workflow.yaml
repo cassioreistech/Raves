@@ -1,0 +1,20 @@
+name: Diagnóstico inicial
+description: Rotina de exemplo no schema WinBot. Roda em dry-run; use --apply para executar.
+steps:
+  - name: Listar temporários (somente leitura)
+    action: powershell
+    params:
+      command: "Get-ChildItem $env:TEMP | Select-Object -First 5 Name, Length"
+      timeout: 15
+  - name: Abrir bloco de notas
+    action: launch_app
+    params:
+      target: notepad.exe
+  - name: Focar a janela
+    action: focus_window
+    params:
+      title: "Bloco de Notas"
+  - name: Pausa curta
+    action: wait
+    params:
+      seconds: 1

@@ -1,0 +1,34 @@
+# Template de configuração — NUNCA coloque segredos aqui.
+# O arquivo real do cliente fica em %LOCALAPPDATA%\WinBot\settings.yaml
+# e é criado por `winbot init`.
+general:
+  dry_run: true          # workflows nunca aplicam sem --apply
+  log_level: INFO
+paths:
+  workspace: null        # null => %USERPROFILE%\WinBot
+security:
+  allow_shell: false     # se false, apenas dry-run; nenhum processo é iniciado
+  allowed_executables:   # allowlist para engine/shell.py
+    - powershell.exe
+    - pwsh.exe
+    - cmd.exe
+  allowed_apps:          # allowlist para windows_api.launch_app
+    - notepad.exe
+    - calc.exe
+    - explorer.exe
+  deny_processes:        # kill_process_by_name nunca encerra estes
+    - system
+    - smss.exe
+    - csrss.exe
+    - wininit.exe
+    - services.exe
+    - lsass.exe
+    - winlogon.exe
+    - svchost.exe
+    - explorer.exe
+  command_timeout_s: 30
+  deny_patterns:         # somam-se a BLACKLIST_PATTERNS em core/security.py
+    - "Remove-Item .*-Recurse"
+    - "Format-Volume"
+    - "reg delete"
+    - "Stop-Computer"

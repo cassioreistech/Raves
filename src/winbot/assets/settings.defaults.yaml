@@ -1,0 +1,31 @@
+general:
+  dry_run: true
+  log_level: INFO
+paths:
+  workspace: null
+security:
+  allow_shell: false
+  allowed_executables:
+    - powershell.exe
+    - pwsh.exe
+    - cmd.exe
+  allowed_apps:
+    - notepad.exe
+    - calc.exe
+    - explorer.exe
+  deny_processes:
+    - system
+    - smss.exe
+    - csrss.exe
+    - wininit.exe
+    - services.exe
+    - lsass.exe
+    - winlogon.exe
+    - svchost.exe
+    - explorer.exe
+  command_timeout_s: 30
+  deny_patterns:
+    - "Remove-Item .*-Recurse"
+    - "Format-Volume"
+    - "reg delete"
+    - "Stop-Computer"

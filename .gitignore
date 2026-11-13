@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.spec
+.pytest_cache/
+.ruff_cache/
+.env
+*.key
+config/settings.local.yaml
+*.exe
+*.msi
+
+# Estado local do agente (OpenCode): nao e artefato do produto
+.opencode/

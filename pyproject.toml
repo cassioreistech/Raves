@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winbot"
+version = "0.1.0"
+description = "Automação e Orquestração Determinística para Windows"
+readme = "README.md"
+# Teto <3.14 = trava de compatibilidade da toolchain nativa (Nuitka/pywin32).
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "typer>=0.12.0",                              # sem o extra [all], removido no Typer moderno
+    "rich>=13.7.0",
+    "pydantic>=2.7.0",
+    "pyyaml>=6.0.1",
+    "loguru>=0.7.2",
+    "psutil>=5.9.8",
+    "pywin32>=306; sys_platform == 'win32'",
+    "pywinauto>=0.6.8; sys_platform == 'win32'", # primário para automação GUI
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.5.0",
+    "pyright>=1.1.350",
+    "build>=1.2.0",
+    "types-PyYAML>=6.0.12",
+    "nuitka>=2.1.0",
+]
+gui = ["pyautogui>=0.9.54"]                       # fallback opcional para clique por imagem
+
+[project.scripts]
+winbot = "winbot.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+winbot = ["assets/*.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["build", "dist", "*.egg-info", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+venvPath = "."
+venv = ".venv"
+reportMissingModuleSource = "none"                # pywin32/psutil não distribuem fontes tipadas
