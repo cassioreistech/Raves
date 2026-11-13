@@ -186,9 +186,19 @@ emitida e verificada ponta a ponta: `LICENSED pro 2027-11-13`, HWID
 em DRY-RUN) · `schedule create/remove` (simulados) · `winbot workflow run
 examples/bloqueado.workflow.yaml` → BLOQUEADO, exit 1.
 
-**Pendente:** `scripts/smoke_build.ps1` — compilação Nuitka em background, ainda na
-linkagem C do gcc 15.2. Resultado a confirmar antes do Passo 4.
+**Smoke Nuitka (achado importante):** a 1ª compilação gerou
+`build/smoke/smoke_entry.exe` (13,2 MB) mas **falhou em runtime** com
+`ModuleNotFoundError: No module named 'comtypes.stream'`. Causa: `pywinauto` →
+`comtypes` gera wrappers COM via `importlib` em runtime, invisível à análise
+estática do Nuitka. Correção aplicada e publicada (`a230fb1`):
+`--include-package=comtypes --include-package=pywinauto`. Revalidação em
+background. **O gate cumpriu seu papel**: detectou o problema antes do Passo 4.
+
+**Abertura do sistema:** bateria funcional completa no terminal real +
+janela visível com `winbot rpa spy` aberta (PID 23824, Ctrl+C para fechar).
+WezTerm não instalado → abertura via `Start-Process` com argv puro, sem shell.
 
 ---
 
-**Próximo:** Passo 4 (Final) — Nuitka `.exe` protegido + instalador Inno Setup.
+**Próximo:** Passo 4 (Final) — Nuitka `.exe` protegido + instalador Inno Setup,
+assim que a revalidação do smoke confirmar o `.exe` executando.
