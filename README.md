@@ -189,6 +189,33 @@ Ação de workflow nova: `ocr_click` (com `text`). `ler tela`/`o que esta escrit
 na tela` lê a janela ativa via OCR e exibe/fala um resumo (truncado a 500
 chars). `clicar no texto <texto>` executa `vision.click_text`.
 
+## Sprint B · Gatilhos Reativos + Cérebro Híbrido (Ollama)
+
+Gatilhos event-driven em ~0% CPU (sem polling):
+
+```powershell
+.\.venv\Scripts\winbot.exe trigger list
+.\.venv\Scripts\winbot.exe trigger add --name pdf_novo --event file_created --path "$HOME\Downloads" --ext .pdf --run organizar_pdfs
+.\.venv\Scripts\winbot.exe trigger add --name calc_abriu --event window_opened --window Calculadora --run "focar Calculadora"
+.\.venv\Scripts\winbot.exe trigger watch       # Ctrl+C encerra
+```
+
+`file_created` usa `watchdog` (ReadDirectoryChangesW nativo) com debounce de 1,5s
+(para o download terminar). `window_opened` reusa uma única thread de polling de
+baixa frequência (2s). O daemon também sobe dentro de `winbot tray`.
+
+Cérebro híbrido (`ai/local_brain.py`): Ollama local (modelo leve, ex.
+`qwen2.5:1.5b`) com `keep_alive: "2m"` (RAM liberada após 2 min de ociosidade),
+comunicação via `urllib` (sem SDK). `is_available()` tem cache de 60s e timeout
+de 0,3s — se o Ollama não estiver instalado, degrada graciosamente. O
+`initial_prompt` injeta interesses do usuário + comandos válidos; se a pergunta
+mencionar área de transferência, inclui `pyperclip.paste()` (truncado a 2000
+chars).
+
+Roteador em cascata no dispatcher: parser determinístico (1 ms) → memória/hábitos
+→ LocalBrain (se `ACTION: <comando>` executa; senão resposta conversacional) →
+fallback amigável offline com dicas.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

@@ -21,12 +21,14 @@ from rich.console import Console
 from winbot.commands.workflow import WORKFLOWS_DIR
 from winbot.core import database
 from winbot.engine.observer import ContextObserver
+from winbot.engine.triggers import TriggerManager
 
 app = typer.Typer(help="Roda o WinBot discretamente na bandeja do sistema.")
 console = Console()
 
 _observer: ContextObserver | None = None
 _observer_lock = threading.Lock()
+_trigger_manager: TriggerManager | None = None
 _voice_paused = False
 
 
@@ -70,6 +72,22 @@ def _stop_observer() -> None:
         if _observer is not None:
             _observer.stop()
             _observer = None
+
+
+def _start_triggers() -> None:
+    global _trigger_manager
+    if _trigger_manager is not None:
+        return
+    manager = TriggerManager()
+    _trigger_manager = manager
+    manager.start()
+
+
+def _stop_triggers() -> None:
+    global _trigger_manager
+    if _trigger_manager is not None:
+        _trigger_manager.stop()
+        _trigger_manager = None
 
 
 def _toggle_voice(icon: Any, item: Any) -> None:
@@ -138,6 +156,7 @@ def _run_tray() -> None:
 
     database.init_db()
     _start_observer()
+    _start_triggers()
 
     menu = pystray.Menu(
         pystray.MenuItem(_voice_status_text, _toggle_voice),
@@ -152,5 +171,6 @@ def _run_tray() -> None:
     try:
         icon.run()
     finally:
+        _stop_triggers()
         _stop_observer()
         console.print("[dim]WinBot Tray encerrado.[/dim]")

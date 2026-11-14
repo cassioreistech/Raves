@@ -59,7 +59,7 @@ def test_esperar_respeita_limite_do_schema() -> None:
 
 
 def test_comando_desconhecido_e_pedido_vazio() -> None:
-    assert "nao reconhecido" in execute_natural_command("dancar samba", apply=False)[0].message
+    assert "não reconhecido" in execute_natural_command("dancar samba", apply=False)[0].message
     assert execute_natural_command("   ", apply=False)[0].ok is False
 
 
@@ -157,6 +157,38 @@ def test_shell_sai_com_exit() -> None:
     result = CliRunner().invoke(app, ["shell"], input="exit\n")
     assert result.exit_code == 0
     assert "Até logo" in result.stdout
+
+
+# --- Sprint B (Gatilhos + Cerebro Híbrido) ----------------------------------
+
+
+def test_cascade_offline_retorna_fallback_amigavel() -> None:
+    results = execute_natural_command("resuma o que esta na area de transferencia", apply=False)
+    assert results[0].ok is False
+    assert "não reconhecido" in results[0].message
+    assert "Ollama offline" in results[0].message
+
+
+def test_cascade_com_ollama_action_executa_comando(mocker) -> None:
+    from winbot.ai import local_brain as lb_mod
+
+    mocker.patch.object(lb_mod.LocalBrain, "is_available", return_value=True)
+    mocker.patch.object(lb_mod.LocalBrain, "ask", return_value={"text": "", "action": "abrir calc"})
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    results = execute_natural_command("abra a calculadora", apply=False, policy=SecuritySettings())
+    assert any("abrir calc.exe" in item.label for item in results)
+
+
+def test_cascade_com_ollama_conversacional_retorna_texto(mocker) -> None:
+    from winbot.ai import local_brain as lb_mod
+
+    mocker.patch.object(lb_mod.LocalBrain, "is_available", return_value=True)
+    mocker.patch.object(
+        lb_mod.LocalBrain, "ask", return_value={"text": "Olá! Posso ajudar.", "action": None}
+    )
+    results = execute_natural_command("oi tudo bem", apply=False)
+    assert results[0].ok is True
+    assert "Olá" in results[0].message
 
 
 # --- Etapa 3 (Engenharia de Audio) -------------------------------------------

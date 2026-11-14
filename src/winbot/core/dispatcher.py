@@ -547,14 +547,9 @@ def _policy_for(specs: list[CommandSpec], policy: SecuritySettings) -> SecurityS
     return policy.model_copy(update={"allowed_apps": sorted({*policy.allowed_apps, *extra})})
 
 
-def _execute_instruction(
-    raw: str, *, apply: bool, policy: SecuritySettings
+def _run_specs(
+    specs: list[CommandSpec], *, apply: bool, policy: SecuritySettings
 ) -> list[DispatchResult]:
-    try:
-        specs = parse_instruction(raw)
-    except ValueError as exc:
-        return [DispatchResult(raw, False, str(exc))]
-
     active = _policy_for(specs, policy)
     dry_run = not apply
     results: list[DispatchResult] = []
@@ -564,6 +559,16 @@ def _execute_instruction(
         if outcome.blocked or not outcome.ok:
             break
     return results
+
+
+def _execute_instruction(
+    raw: str, *, apply: bool, policy: SecuritySettings
+) -> list[DispatchResult]:
+    try:
+        specs = parse_instruction(raw)
+    except ValueError as exc:
+        return [DispatchResult(raw, False, str(exc))]
+    return _run_specs(specs, apply=apply, policy=policy)
 
 
 def _handle_memory(raw: str, *, apply: bool, policy: SecuritySettings) -> list[DispatchResult]:
@@ -685,6 +690,46 @@ def execute_natural_command(
     if database.is_memory_command(raw):
         return _handle_memory(raw, apply=apply, policy=active)
 
-    results = _execute_instruction(raw, apply=apply, policy=active)
-    _log(raw, results)
-    return results
+    # 1) Parser determinístico (1 ms).
+    try:
+        specs = parse_instruction(raw)
+    except ValueError:
+        specs = None
+
+    if specs is not None:
+        results = _run_specs(specs, apply=apply, policy=active)
+        _log(raw, results)
+        return results
+
+    # 2) Cascata: cérebro híbrido local (Ollama) — só se disponível.
+    try:
+        from winbot.ai.local_brain import LocalBrain
+
+        brain = LocalBrain()
+        if brain.is_available():
+            reply = brain.ask(raw)
+            action = reply.get("action")
+            if action:
+                results = _execute_instruction(str(action), apply=apply, policy=active)
+                _log(raw, results)
+                return results
+            text = str(reply.get("text", "")).strip()
+            if text:
+                result = [DispatchResult(raw, True, text)]
+                _log(raw, result)
+                return result
+    except Exception as exc:
+        logger.debug(f"local_brain: indisponível ({exc})")
+
+    # 3) Fallback amigável offline.
+    result = [
+        DispatchResult(
+            raw,
+            False,
+            "Comando não reconhecido. Tente: abrir/fechar/focar/digitar/atalho/limpar temp/"
+            "esperar/ps/repetir/historico/sugestoes/meu perfil/ler tela/clicar no texto. "
+            "(Ollama offline — instale em https://ollama.com para perguntas abertas.)",
+        )
+    ]
+    _log(raw, result)
+    return result

@@ -3,7 +3,7 @@
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
 > RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ · System Tray Etapa 4 ✅ ·
-> **Sprint A (Visão/OCR + Gravador) ✅ validado**.
+> Sprint A (Visão/OCR + Gravador) ✅ · **Sprint B (Gatilhos + Cérebro Híbrido) ✅ validado**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -359,8 +359,30 @@ na tela` / `clicar no texto <texto>`; `capture_error_snapshot` continua best-eff
 
 **Testes:** `tests/test_vision.py` (7), `tests/test_recorder.py` (4).
 
+## 18. Sprint B · Gatilhos Reativos + Cérebro Híbrido (14/11) ✅
+
+**Entregue:** `engine/triggers.py` (TriggerManager + TriggerRule Pydantic, eventos
+`file_created` via watchdog com debounce 1,5s e `window_opened` via thread única de
+polling 2s, persistência em `~/.winbot/triggers.yaml`); `commands/triggers_cmd.py`
+(`list`/`add`/`remove`/`watch`); `ai/local_brain.py` (LocalBrain, is_available com
+cache 60s e timeout 0,3s, ask via urllib com keep_alive "2m", system_prompt com
+interesses/comandos/clipboard, detecção `ACTION:`); roteador em cascata no
+dispatcher (determinístico → memória → LocalBrain → fallback amigável);
+integração do TriggerManager no `winbot tray`.
+
+**Gates:** `pytest -q` → **197 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `trigger add` + `trigger watch` disparou
+`abrir calc` ~2s após um `.pdf` cair em `%TEMP%` (debounce validado); `trigger
+list`/`remove` funcionam; `do "resuma o que esta na area de transferencia"` cai
+no fallback amigável (Ollama offline) com exit 1; cascade com LocalBrain mockado
+executa `ACTION: abrir calc` e retorna resposta conversacional.
+
+**Decisão honesta registrada:** sem Ollama instalado, o cérebro híbrido degrada
+para o fallback offline (sem erros). `keep_alive: "2m"` garante descarga
+automática de RAM.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 5 de Blindagem (escopo a definir).
+Etapa 6 de Blindagem (escopo a definir).
