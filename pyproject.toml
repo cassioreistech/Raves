@@ -28,6 +28,7 @@ dependencies = [
     "pyttsx3>=2.90",                            # TTS offline (SAPI5)
     "pystray>=0.19.5",                          # System Tray do Windows
     "Pillow>=10.0.0",                           # icone do tray
+    "PySide6>=6.7.0",                           # HUD orbital + central de configuracoes (Qt6)
     "watchdog>=4.0.0",                          # gatilhos reativos (ReadDirectoryChangesW)
     "cryptography>=42.0.0",                      # licenciamento Ed25519
 ]

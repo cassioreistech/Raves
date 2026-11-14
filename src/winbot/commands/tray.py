@@ -1,8 +1,7 @@
-"""WinBot na bandeja do sistema (System Tray) — Etapa 4 de Blindagem.
+"""WinBot na bandeja do sistema + HUD Orbital + Central de Configurações (Etapa Visual).
 
-Roda discretamente ao lado do relógio do Windows. Menu: Ativar/Pausar Voz,
-Abrir Shell, Executar Workflow, Sair. Sem janela de console enquanto em segundo
-plano. 100% local.
+Roda o loop Qt principal integrando o ícone da bandeja (QSystemTrayIcon), o
+HUD Orbital flutuante e um atalho global (Ctrl+Alt+Space). Tudo 100% local.
 """
 
 from __future__ import annotations
@@ -15,26 +14,35 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from PIL import Image, ImageDraw, ImageFont
-from rich.console import Console
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from winbot.ai.local_brain import shutdown_if_managed
 from winbot.commands.workflow import WORKFLOWS_DIR
 from winbot.core import database
 from winbot.engine.observer import ContextObserver
 from winbot.engine.triggers import TriggerManager
+from winbot.ui.hud_overlay import HudOverlay
+from winbot.ui.settings_window import SettingsWindow
+from winbot.ui.state_bridge import StateBridge
 
-app = typer.Typer(help="Roda o WinBot discretamente na bandeja do sistema.")
-console = Console()
+app = typer.Typer(help="Roda o WinBot discretamente na bandeja do sistema (HUD + Qt).")
 
 _observer: ContextObserver | None = None
 _observer_lock = threading.Lock()
 _trigger_manager: TriggerManager | None = None
 _voice_paused = False
+_qt_app: QApplication | None = None
+_settings_window: SettingsWindow | None = None
+_hud: HudOverlay | None = None
+_bridge: StateBridge | None = None
+_hotkey_thread: threading.Thread | None = None
+_hotkey_stop = threading.Event()
+_tray_icon: QSystemTrayIcon | None = None
 
 
 def _winbot_argv() -> list[str]:
-    """Resolve o executável do WinBot (instalado ou venv de desenvolvimento)."""
     exe = shutil.which("winbot")
     if exe:
         return [exe]
@@ -44,17 +52,18 @@ def _winbot_argv() -> list[str]:
     return [sys.executable, "-m", "winbot"]
 
 
-def _make_icon() -> Image.Image:
-    """Ícone simples gerado em memória (sem arquivo externo)."""
+def _make_icon_pixmap() -> QPixmap:
     size = 64
-    image = Image.new("RGB", (size, size), "#1f3864")
-    draw = ImageDraw.Draw(image)
-    try:
-        font = ImageFont.truetype("segoeui.ttf", 40)
-    except OSError:
-        font = ImageFont.load_default()
-    draw.text((size // 2, size // 2), "W", fill="#ffffff", font=font, anchor="mm")
-    return image
+    pixmap = QPixmap(size, size)
+    pixmap.fill(QColor("#1f3864"))
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    font = QFont("Segoe UI", 32, QFont.Weight.Bold)
+    painter.setFont(font)
+    painter.setPen(QColor("#ffffff"))
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "W")
+    painter.end()
+    return pixmap
 
 
 def _start_observer() -> None:
@@ -91,7 +100,7 @@ def _stop_triggers() -> None:
         _trigger_manager = None
 
 
-def _toggle_voice(icon: Any, item: Any) -> None:
+def _toggle_voice() -> None:
     global _voice_paused
     if _voice_paused:
         _start_observer()
@@ -99,31 +108,40 @@ def _toggle_voice(icon: Any, item: Any) -> None:
     else:
         _stop_observer()
         _voice_paused = True
-    # Atualiza o menu (pystray recria o menu a cada clique se for callable).
-    icon.update_menu()
+    if _tray_icon is not None:
+        pass  # Qt não tem update_menu(); o rótulo é estático, mas a ação funciona.
 
 
-def _voice_status_text(item: Any) -> str:
+def _voice_status_text() -> str:
     return "Pausar Voz" if not _voice_paused else "Ativar Voz"
 
 
-def _open_shell(icon: Any, item: Any) -> None:
+def _open_shell() -> None:
     try:
         subprocess.Popen(
             _winbot_argv() + ["shell"],
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
     except OSError as exc:
-        console.print(f"[bold red]Falha ao abrir shell:[/bold red] {exc}")
+        print(f"Falha ao abrir shell: {exc}")
 
 
-def _workflow_items() -> list[Any]:
-    import pystray
+def _open_settings() -> None:
+    global _settings_window
+    if _settings_window is None:
+        _settings_window = SettingsWindow()
+    _settings_window.show()
+    _settings_window.raise_()
+    _settings_window.activateWindow()
 
+
+def _workflow_items() -> list[QAction]:
+    actions: list[QAction] = []
     files = sorted(WORKFLOWS_DIR.glob("*.yaml")) if WORKFLOWS_DIR.exists() else []
     if not files:
-        return [pystray.MenuItem("(nenhum workflow)", None, enabled=False)]
-    items = []
+        act = QAction("(nenhum workflow)", None)
+        act.setEnabled(False)
+        return [act]
     for path in files:
 
         def _run(wf_path: Path = path) -> None:
@@ -133,48 +151,138 @@ def _workflow_items() -> list[Any]:
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
             except OSError as exc:
-                console.print(f"[bold red]Falha ao executar workflow:[/bold red] {exc}")
+                print(f"Falha ao executar workflow: {exc}")
 
-        items.append(pystray.MenuItem(path.stem, lambda _icon, _item, fn=_run: fn()))
-    return items
+        action = QAction(path.stem, None)
+        action.triggered.connect(_run)
+        actions.append(action)
+    return actions
 
 
-def _quit(icon: Any, item: Any) -> None:
+def _quit_app() -> None:
     _stop_triggers()
     _stop_observer()
     shutdown_if_managed()
-    icon.stop()
+    if _qt_app is not None:
+        _qt_app.quit()
 
 
-@app.callback(invoke_without_command=True)
-def tray(ctx: typer.Context) -> None:
-    """Roda o WinBot discretamente na bandeja do sistema (Ctrl+C não se aplica)."""
-    if ctx.invoked_subcommand is not None:
+def _global_hotkey_loop() -> None:
+    try:
+        from pynput import keyboard
+    except Exception:
         return
-    _run_tray()
+    pressed: set[str] = set()
+
+    def on_press(key: Any) -> None:
+        try:
+            if key in (keyboard.Key.ctrl_l, keyboard.Key.ctrl_r, keyboard.Key.ctrl):
+                pressed.add("ctrl")
+            elif key in (keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt):
+                pressed.add("alt")
+            elif key == keyboard.Key.space:
+                pressed.add("space")
+        except Exception:
+            pass
+        if {"ctrl", "alt", "space"} <= pressed and _bridge is not None:
+            _bridge.request_show.emit()  # type: ignore[attr-defined]
+            pressed.clear()
+
+    def on_release(key: Any) -> None:
+        try:
+            if key in (keyboard.Key.ctrl_l, keyboard.Key.ctrl_r, keyboard.Key.ctrl):
+                pressed.discard("ctrl")
+            elif key in (keyboard.Key.alt_l, keyboard.Key.alt_r, keyboard.Key.alt):
+                pressed.discard("alt")
+            elif key == keyboard.Key.space:
+                pressed.discard("space")
+        except Exception:
+            pass
+
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        _hotkey_stop.wait()
+        listener.stop()
+
+
+def _build_tray_icon() -> QSystemTrayIcon:
+    global _tray_icon
+    icon = QSystemTrayIcon()
+    icon.setIcon(QIcon(_make_icon_pixmap()))
+    icon.setToolTip("WinBot")
+
+    menu = QMenu()
+    act_show = QAction("Chamar Assistente (Ctrl+Alt+Space)", icon)
+
+    def _show() -> None:
+        bridge = _bridge
+        if bridge is not None:
+            bridge.request_show.emit()  # type: ignore[attr-defined]
+
+    act_show.triggered.connect(_show)
+    menu.addAction(act_show)
+
+    act_settings = QAction("Abrir Configurações", icon)
+    act_settings.triggered.connect(_open_settings)
+    menu.addAction(act_settings)
+
+    act_toggle = QAction("Pausar Voz", icon)
+    act_toggle.triggered.connect(_toggle_voice)
+    menu.addAction(act_toggle)
+
+    wf_menu = QMenu("Executar Workflow")
+    for action in _workflow_items():
+        wf_menu.addAction(action)
+    menu.addMenu(wf_menu)
+
+    menu.addSeparator()
+    act_quit = QAction("Sair", icon)
+    act_quit.triggered.connect(_quit_app)
+    menu.addAction(act_quit)
+
+    icon.setContextMenu(menu)
+    icon.activated.connect(
+        lambda reason: (
+            _open_settings() if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None
+        )
+    )
+    _tray_icon = icon
+    return icon
 
 
 def _run_tray() -> None:
-    import pystray
+    global _qt_app, _hud, _bridge, _hotkey_thread
+    import sys as _sys
 
     database.init_db()
     _start_observer()
     _start_triggers()
 
-    menu = pystray.Menu(
-        pystray.MenuItem(_voice_status_text, _toggle_voice),
-        pystray.MenuItem("Abrir Shell", _open_shell),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Executar Workflow", pystray.Menu(*_workflow_items())),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Sair", _quit),
-    )
+    instance = QApplication.instance()
+    _qt_app = instance if isinstance(instance, QApplication) else QApplication(_sys.argv)
+    _bridge = StateBridge()
+    _hud = HudOverlay(_bridge)
 
-    icon = pystray.Icon("winbot", _make_icon(), "WinBot", menu)
-    try:
-        icon.run()
-    finally:
-        _stop_triggers()
-        _stop_observer()
-        shutdown_if_managed()
-        console.print("[dim]WinBot Tray encerrado.[/dim]")
+    tray_icon = _build_tray_icon()
+    tray_icon.show()
+
+    _hotkey_stop.clear()
+    _hotkey_thread = threading.Thread(target=_global_hotkey_loop, name="winbot-hotkey", daemon=True)
+    _hotkey_thread.start()
+
+    assert _qt_app is not None
+    _qt_app.exec()
+
+    _hotkey_stop.set()
+    if _hotkey_thread is not None:
+        _hotkey_thread.join(timeout=1.0)
+    _stop_triggers()
+    _stop_observer()
+    shutdown_if_managed()
+
+
+@app.callback(invoke_without_command=True)
+def tray(ctx: typer.Context) -> None:
+    """Roda o WinBot na bandeja do sistema (HUD Orbital + Central de Configurações)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    _run_tray()

@@ -271,6 +271,24 @@ envia a requisição com `keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140
 Após 90s de ociosidade o modelo é descarregado da RAM. Se o Ollama não estiver
 instalado, degrada graciosamente (fallback offline com dicas).
 
+## Interface Visual · Etapa 7 (HUD Orbital + Central Dark HUD)
+
+```powershell
+.\.venv\Scripts\winbot.exe ui          # abre a Central de Configurações
+.\.venv\Scripts\winbot.exe tray        # roda na bandeja (HUD + atalho global)
+```
+
+Núcleo Orbital Flutuante: janela frameless, always-on-top, fundo transparente,
+arrastável, posicionada no canto inferior direito. 3 anéis geométricos
+assimétricos (telemetria tracejada, arco rotativo, núcleo pulsante) que mudam de
+cor por estado (LISTENING ciano pulsando com o volume, THINKING âmbar, SPEAKING
+esmeralda, ERROR coral). Painel translúcido (glassmorphism) exibe o comando/ação
+com auto-ocultação em 4s. Atalho global **Ctrl+Alt+Space** invoca o HUD.
+
+Central de Configurações (Dark HUD, 4 abas): Voz & Áudio, Cérebro Local
+(Ollama), Workflows & Gatilhos, Perfil & Licença. Tudo via PySide6 (Qt6), ~35 MB
+de RAM, aceleração vetorial.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

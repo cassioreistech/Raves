@@ -1,3 +1,8 @@
+import os
+
+# Headless Qt para os testes de UI (deve vir ANTES de importar PySide6).
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 from typer.testing import CliRunner
 

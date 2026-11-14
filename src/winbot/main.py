@@ -30,6 +30,7 @@ from winbot.core.config import load_settings
 from winbot.core.dispatcher import execute_natural_command, redact_command
 from winbot.core.licensing import current_status
 from winbot.core.logger import setup_logger
+from winbot.ui.settings_window import SettingsWindow
 
 
 def _configure_stdout() -> None:
@@ -151,6 +152,19 @@ def shell_cmd(
         dry_run=dry_run,
         settings=load_settings(),
     )
+
+
+@app.command("ui")
+def ui_cmd() -> None:
+    """Abre a Central de Configurações (Dark HUD)."""
+    import sys as _sys
+
+    from PySide6.QtWidgets import QApplication
+
+    qt_app = QApplication.instance() or QApplication(_sys.argv)
+    window = SettingsWindow()
+    window.show()
+    qt_app.exec()
 
 
 if __name__ == "__main__":

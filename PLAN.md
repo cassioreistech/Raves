@@ -5,8 +5,9 @@
 > RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ (ASR/TTS agora ligados em `voice listen`
 > quando o modelo está em cache) · System Tray Etapa 4 ✅ ·
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
-> Blindagem Etapa 6 ✅ · **Setup Ollama Zero-Atrito ✅** (auto-start, keep_alive 90s,
-> env vars de economia, winbot ai status/setup/unload/shutdown).
+> Blindagem Etapa 6 ✅ · Setup Ollama Zero-Atrito ✅ ·
+> **Interface Visual Etapa 7 ✅** (HUD Orbital + Central Dark HUD, PySide6,
+> atalho global Ctrl+Alt+Space, `winbot ui`).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -430,8 +431,19 @@ shutdown. Integrado ao `winbot tray` (Sair encerra o serve gerenciado).
 encontrado" (não instalado) + RAM livre 5,07 GB; `ai unload` degrada
 graciosamente; `ai --help` lista status/setup/unload/shutdown.
 
+## 21. Interface Visual · Etapa 7 (14/11) ✅
+
+**Entregue:** `ui/state_bridge.py` (StateBridge com sinais state_changed/audio_level_changed/show_hud/hide_hud/open_settings, estados UiState); `ui/hud_overlay.py` (QWidget frameless, always-on-top, fundo transparente, arrastável, 3 anéis assimétricos com cores por estado, painel glassmorphism com auto-hide 4s, atalho global Ctrl+Alt+Space via pynput em thread daemon); `ui/settings_window.py` (Dark HUD QSS, 4 abas: Voz & Áudio, Cérebro Local, Workflows & Gatilhos, Perfil & Licença); `commands/tray.py` reescrito (loop Qt unificado, QSystemTrayIcon nativo, menu, HUD, atalho global, shutdown); `main.py` ganhou `winbot ui`.
+
+**Gates:** `pytest -q` → **219 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `winbot ui` abre a Central sem crash;
+`winbot tray` abre o ícone na bandeja e encerra limpo; HUD renderiza em offscreen.
+
+**Testes:** `tests/test_ui_state_bridge.py` (5), `tests/test_ui_hud.py` (3),
+`tests/test_ui_settings.py` (3).
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 7 de Blindagem (escopo a definir).
+Etapa 8 de Blindagem (escopo a definir).
