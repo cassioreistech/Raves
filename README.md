@@ -89,6 +89,52 @@ no Windows 10/11 o `calc.exe` é apenas um stub. O texto de `digitar` nunca apar
 no rótulo nem em log (pode ser senha). Ícones ✔/✘ em UTF-8, com fallback ASCII
 `OK`/`X` em consoles cp1252 que não aceitarem o reconfigure.
 
+## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
+
+Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).
+**Toda** conexão aplica `PRAGMA journal_mode=WAL` e `PRAGMA synchronous=NORMAL`.
+Tabelas criadas na inicialização: `installed_apps(name PK, target_path, source,
+updated_at)` e `command_history(id, raw_command, success, result_message,
+executed_at)`.
+
+```powershell
+.\.venv\Scripts\winbot.exe apps sync                # varre Menu Iniciar + App Paths
+.\.venv\Scripts\winbot.exe apps list --filter chrome
+```
+
+O indexador (`engine/app_indexer.py`) lê `.lnk` recursivamente dos dois
+`Start Menu\Programs` (ignorando `uninstall`/`remover`), mais as chaves
+`HKLM`/`HKCU ...\App Paths` via `winreg`. Normaliza em minúsculo (`Google
+Chrome.lnk` → `google chrome`) e gera alias curto (`googlechrome`). **Sem COM nem
+ShellExecute na varredura**, limites duros e falhas ignoradas por item — não trava
+a CLI. Registro tem prioridade sobre `.lnk` (entrega o `.exe` real).
+
+Se `installed_apps` estiver vazia, o primeiro `do`/`shell` indexa **uma vez**
+automaticamente. `_resolve_app_name` consulta `APP_ALIASES` → `database.find_app`
+(exato, depois `LIKE` pelo nome mais curto) → raw puro.
+
+Comandos de memória (valem sozinhos, não em cadeia):
+
+| Pedido | Efeito |
+|---|---|
+| `repetir` / `repetir ultimo` / `faz de novo` | reexecuta o último comando bem-sucedido |
+| `historico` / `ultimos comandos` | exibe os últimos 5 |
+
+Toda execução é registrada. `repetir` não entra em loop: comandos de memória são
+filtrados por `get_last_successful_command()` e o replay é logado com o comando
+real, não com a palavra `repetir`.
+
+**Segurança desta etapa:**
+- Apps resolvidos pelo índice liberam **somente o seu basename** na allowlist,
+  via cópia da política feita dentro do dispatcher. `workflow run` continua com a
+  allowlist original: um YAML com `params.indexed` não ganha nada.
+- `.lnk` é aberto por `os.startfile` sobre um **caminho fixo** (sem string de
+  comando, sem interpolação de argv) — não é `shell=True`.
+- `raw_command` fica em texto claro no SQLite local porque `repetir` precisa
+  reexecutá-lo. O terminal nunca mostra o payload de `digitar`: `redact_command`
+  mascara em `do`, `historico` e no rótulo das ações. `gui_type` continua sem
+  logar o texto.
+
 ## Schema de workflow
 
 Ações: `powershell`, `launch_app`, `kill_process`, `focus_window`, `wait`,

@@ -4,28 +4,36 @@ Nao ha LLM: cada frase e mapeada por regex para uma acao do engine. A execucao
 passa pelo MESMO gate de seguranca do ``workflow run`` (allowlists, blacklist,
 dry-run, auditoria, fail-closed). ``commands/workflow.py`` delega para
 ``execute_step`` deste modulo para nao duplicar a logica sensivel.
+
+Etapa 1 de Blindagem: indice SQLite de apps, resolucao de nomes, memoria de
+comandos (``repetir`` / ``historico``) e registro de toda execucao.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from winbot.core import database
 from winbot.core.config import SecuritySettings, WorkflowStep, load_settings
-from winbot.core.logger import audit
+from winbot.core.logger import audit, logger
 from winbot.core.security import SecurityViolationError
 from winbot.engine import gui, shell, windows_api
 
 __all__ = [
+    "APP_ALIASES",
     "CommandSpec",
     "DispatchResult",
     "StepOutcome",
+    "ensure_app_index",
     "execute_natural_command",
     "execute_step",
     "parse_instruction",
+    "redact_command",
 ]
 
 
@@ -168,6 +176,16 @@ class DispatchResult:
 
 _VERBS = r"abrir|fechar|focar|digitar|atalho|limpar|esperar|ps"
 
+# Resolucoes conhecidas, consultadas ANTES do indice SQLite.
+APP_ALIASES: dict[str, str] = {
+    "calc": "calc.exe",
+    "calculadora": "calc.exe",
+    "bloco de notas": "notepad.exe",
+    "notepad": "notepad.exe",
+    "explorador": "explorer.exe",
+    "explorer": "explorer.exe",
+}
+
 # Stubs do Windows que apenas iniciam outro processo. Sem estes aliases,
 # "fechar calc" encerra 0 processos: o real e Calculator.exe (Win10) ou
 # CalculatorApp.exe (Win11). Nomes EXPLICITOS, nunca substring: ampliar o
@@ -181,13 +199,50 @@ _PROCESS_ALIASES: dict[str, tuple[str, ...]] = {
 _CHAIN_RE = re.compile(r"\s+e\s+(?=(?:" + _VERBS + r")\b)", re.IGNORECASE)
 _FLAGS = re.IGNORECASE | re.DOTALL
 
+# Guarda de "uma vez por processo" para a indexacao automatica.
+_index_checked = False
 
-def _normalize_app(raw: str) -> str:
-    """'calc' -> 'calc.exe' (allowlist e psutil usam o nome com extensao)."""
-    name = raw.strip().strip("\"'").strip()
-    if not name:
+
+def ensure_app_index() -> int:
+    """Indexa automaticamente UMA vez, e so se ``installed_apps`` estiver vazia.
+
+    Indexacao e oportunista: qualquer falha e registrada e ignorada, nunca pode
+    impedir um pedido de executar. ``WINBOT_SKIP_APP_INDEX`` desliga em testes.
+    """
+    global _index_checked
+    if _index_checked or os.environ.get("WINBOT_SKIP_APP_INDEX"):
+        return 0
+    _index_checked = True
+    try:
+        if database.count_apps() > 0:
+            return 0
+        # Import local: evita carregar winreg/varredura em `--help` e em testes.
+        from winbot.engine.app_indexer import scan_and_index_windows_apps
+
+        return scan_and_index_windows_apps()
+    except Exception as exc:  # indexing nunca pode ser fail-closed
+        logger.warning(f"indexacao automatica ignorada: {exc}")
+        audit(f"app_index auto failure={exc!r}")
+        return 0
+
+
+def _resolve_app_name(raw: str) -> str:
+    """APP_ALIASES -> ``database.find_app`` -> raw puro (sem acrescentar .exe)."""
+    cleaned = raw.strip().strip("\"'").strip()
+    if not cleaned:
         raise ValueError("nome do aplicativo vazio")
-    return name if name.lower().endswith(".exe") else f"{name}.exe"
+    key = cleaned.lower()
+    if key in APP_ALIASES:
+        return APP_ALIASES[key]
+    found = database.find_app(key)
+    if found:
+        return found
+    return cleaned
+
+
+def _is_indexed_path(value: str) -> bool:
+    """O indice devolve caminhos absolutos (.exe do registro ou .lnk do menu)."""
+    return Path(value).is_absolute() or value.lower().endswith(".lnk")
 
 
 def _parse_keys(raw: str) -> list[str]:
@@ -202,21 +257,31 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
 
     match = re.fullmatch(r"abrir\s+(.+)", text, _FLAGS)
     if match:
-        app = _normalize_app(match.group(1))
+        resolved = _resolve_app_name(match.group(1))
+        indexed = _is_indexed_path(resolved)
+        label_name = Path(resolved).name if indexed else resolved
+        params: dict[str, object] = {"target": resolved}
+        if indexed:
+            # Marcador INTERNO: so execute_natural_command o consome para liberar
+            # o basename na allowlist. Um YAML nunca consegue usar este atalho.
+            params["indexed"] = True
         return [
             CommandSpec(
-                f"abrir {app}",
-                WorkflowStep(name="abrir", action="launch_app", params={"target": app}),
+                f"abrir {label_name}",
+                WorkflowStep(name="abrir", action="launch_app", params=params),
             )
         ]
 
     match = re.fullmatch(r"fechar\s+(.+)", text, _FLAGS)
     if match:
-        app = _normalize_app(match.group(1))
-        names = list(_PROCESS_ALIASES.get(app.lower(), (app,)))
+        resolved = _resolve_app_name(match.group(1))
+        proc = Path(resolved).name.lower() if _is_indexed_path(resolved) else resolved.lower()
+        if not proc.endswith(".exe"):
+            proc = f"{proc}.exe"  # psutil compara pelo nome real do processo
+        names = list(_PROCESS_ALIASES.get(proc, (proc,)))
         return [
             CommandSpec(
-                f"fechar {app}",
+                f"fechar {proc}",
                 WorkflowStep(name="fechar", action="kill_process", params={"name": names}),
             )
         ]
@@ -239,7 +304,7 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
             payload = payload[: enter.start()].strip()
         if not payload:
             raise ValueError("digitar exige um texto")
-        # O texto NAO entra no rotulo nem em log: pode ser uma senha.
+        # O texto NAO entra no rotulo nem em result_message: pode ser uma senha.
         specs = [
             CommandSpec(
                 f"digitar texto ({len(payload)} caractere(s))",
@@ -308,6 +373,121 @@ def parse_instruction(instruction: str) -> list[CommandSpec]:
     return specs
 
 
+def redact_command(raw: str) -> str:
+    """Mascara o payload de ``digitar`` antes de EXIBIR o historico.
+
+    ``raw_command`` continua integral no SQLite (necessario para ``repetir``),
+    mas nunca aparece no terminal — pode conter senha.
+    """
+    parts = _CHAIN_RE.split(raw.strip())
+    masked: list[str] = []
+    for part in parts:
+        segment = part.strip()
+        match = re.fullmatch(r"(digitar\s+)(.+?)(\s+com\s+enter)?", segment, _FLAGS)
+        if match:
+            masked.append(
+                f"{match.group(1)}texto ({len(match.group(2).strip())} caractere(s))"
+                f"{match.group(3) or ''}"
+            )
+        else:
+            masked.append(segment)
+    return " e ".join(masked)
+
+
+# ---------------------------------------------------------------------------
+# Orquestracao + memoria
+# ---------------------------------------------------------------------------
+
+
+def _log(raw: str, results: list[DispatchResult]) -> None:
+    """Registra toda execucao. Falha de gravacao nao derruba o pedido."""
+    success = bool(results) and all(item.ok and not item.blocked for item in results)
+    summary = " | ".join(
+        f"{'OK' if item.ok and not item.blocked else 'X'} {item.label}: {item.message}"
+        for item in results
+    )
+    try:
+        database.log_command(raw, success, summary[:2000])
+    except Exception as exc:  # disco cheio / permissao: nao e fail-closed
+        logger.warning(f"historico nao gravado: {exc}")
+
+
+def _policy_for(specs: list[CommandSpec], policy: SecuritySettings) -> SecuritySettings:
+    """Libera SOMENTE os basenames resolvidos pelo indice nesta instrucao.
+
+    Nao afeta ``workflow run``: a copia e feita aqui, dentro do dispatcher.
+    Um YAML com ``params.indexed`` nao ganha nada, pois ``execute_step`` ignora
+    essa chave — a allowlist continua sendo a politica original.
+    """
+    extra = {
+        Path(str(spec.step.params["target"])).name.lower()
+        for spec in specs
+        if spec.step.action == "launch_app" and spec.step.params.get("indexed")
+    }
+    if not extra:
+        return policy
+    return policy.model_copy(update={"allowed_apps": sorted({*policy.allowed_apps, *extra})})
+
+
+def _execute_instruction(
+    raw: str, *, apply: bool, policy: SecuritySettings
+) -> list[DispatchResult]:
+    try:
+        specs = parse_instruction(raw)
+    except ValueError as exc:
+        return [DispatchResult(raw, False, str(exc))]
+
+    active = _policy_for(specs, policy)
+    dry_run = not apply
+    results: list[DispatchResult] = []
+    for spec in specs:
+        outcome = execute_step(spec.step, policy=active, dry_run=dry_run)
+        results.append(DispatchResult(spec.label, outcome.ok, outcome.message, outcome.blocked))
+        if outcome.blocked or not outcome.ok:
+            break
+    return results
+
+
+def _handle_memory(raw: str, *, apply: bool, policy: SecuritySettings) -> list[DispatchResult]:
+    lowered = raw.strip().lower()
+
+    if any(lowered.startswith(prefix) for prefix in database.REPEAT_PREFIXES):
+        last = database.get_last_successful_command()
+        if not last or database.is_memory_command(last):
+            result = [DispatchResult("repetir", False, "Nenhum comando anterior para repetir")]
+            _log(raw, result)
+            return result
+        replay = _execute_instruction(last, apply=apply, policy=policy)
+        # Loga o comando REAL, nao a palavra "repetir": o ultimo sucesso continua
+        # sendo o mesmo e nao ha loop infinito.
+        _log(last, replay)
+        return [
+            DispatchResult("repetir", True, f"Reexecutando: {redact_command(last)}"),
+            *replay,
+        ]
+
+    history = database.get_recent_history(limit=5)
+    if not history:
+        result = [DispatchResult("historico", True, "Nenhum comando registrado ainda")]
+        _log(raw, result)
+        return result
+    rows = []
+    for item in history:
+        detail = item["result_message"]
+        if len(detail) > 90:
+            detail = detail[:87] + "..."
+        rows.append(
+            DispatchResult(
+                f"#{item['id']} {redact_command(item['raw_command'])}",
+                True,
+                f"{'OK' if item['success'] else 'FALHOU'} · {item['executed_at']} · {detail}",
+            )
+        )
+    # Resumo curto: logar as proprias linhas criaria um historico recursivo.
+    _log(raw, [DispatchResult("historico", True, f"{len(rows)} comando(s) exibido(s)")])
+    return rows
+
+
 def execute_natural_command(
     instruction: str,
     *,
@@ -318,18 +498,15 @@ def execute_natural_command(
 
     ``apply=False`` simula (dry-run). Erros de parsing nao levantam excecao:
     retornam um ``DispatchResult`` com ``ok=False`` para a CLI renderizar.
+    Comandos de memoria (``repetir``, ``historico``) valem sozinhos, nao em cadeia.
     """
-    try:
-        specs = parse_instruction(instruction)
-    except ValueError as exc:
-        return [DispatchResult(instruction.strip(), False, str(exc))]
-
+    ensure_app_index()
+    raw = instruction.strip()
     active = policy if policy is not None else load_settings().security
-    dry_run = not apply
-    results: list[DispatchResult] = []
-    for spec in specs:
-        outcome = execute_step(spec.step, policy=active, dry_run=dry_run)
-        results.append(DispatchResult(spec.label, outcome.ok, outcome.message, outcome.blocked))
-        if outcome.blocked or not outcome.ok:
-            break
+
+    if database.is_memory_command(raw):
+        return _handle_memory(raw, apply=apply, policy=active)
+
+    results = _execute_instruction(raw, apply=apply, policy=active)
+    _log(raw, results)
     return results

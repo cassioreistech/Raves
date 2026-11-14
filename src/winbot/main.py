@@ -12,9 +12,9 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from winbot import __version__
-from winbot.commands import rpa_tools, schedule, system, workflow
+from winbot.commands import apps, rpa_tools, schedule, system, workflow
 from winbot.core.config import Settings, load_settings
-from winbot.core.dispatcher import DispatchResult, execute_natural_command
+from winbot.core.dispatcher import DispatchResult, execute_natural_command, redact_command
 from winbot.core.licensing import LicenseError, check_license_or_raise, current_status
 from winbot.core.logger import setup_logger
 
@@ -38,6 +38,7 @@ app.add_typer(system.app, name="sys")
 app.add_typer(workflow.app, name="workflow")
 app.add_typer(schedule.app, name="schedule")
 app.add_typer(rpa_tools.app, name="rpa")
+app.add_typer(apps.app, name="apps")
 
 console = Console()
 
@@ -120,7 +121,7 @@ def do_cmd(
     settings = load_settings()
     _enforce_license(settings)
     mode = "SIMULAÇÃO" if dry_run else "EXECUÇÃO"
-    console.print(f"[dim]Pedido ({mode}):[/dim] {escape(pedido)}")
+    console.print(f"[dim]Pedido ({mode}):[/dim] {escape(redact_command(pedido))}")
 
     results = execute_natural_command(pedido, apply=not dry_run, policy=settings.security)
     _render_results(results)

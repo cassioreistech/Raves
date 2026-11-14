@@ -6,6 +6,7 @@ por validação. Nunca usamos shell=True: um YAML não pode injetar comandos.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -68,6 +69,15 @@ def launch_app(
     audit(f"launch_app argv={cmd!r} dry_run={dry_run}")
     logger.info(f"Iniciando aplicação: {cmd}")
     if dry_run:
+        return True
+    if target.lower().endswith(".lnk"):
+        # Atalhos do Menu Iniciar nao sao executaveis por Popen(shell=False).
+        # os.startfile usa ShellExecute sobre um CAMINHO FIXO: nenhuma string de
+        # comando e montada e nenhum argv e interpolado. Nao e `shell=True`.
+        starter = getattr(os, "startfile", None)
+        if starter is None:
+            raise SecurityViolationError("Atalhos .lnk so podem ser abertos no Windows")
+        starter(target)
         return True
     subprocess.Popen(cmd, shell=False)
     return True

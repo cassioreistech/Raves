@@ -2,8 +2,15 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from winbot.core import database
 from winbot.core.config import SecuritySettings
-from winbot.core.dispatcher import execute_natural_command, parse_instruction
+from winbot.core.dispatcher import (
+    _policy_for,
+    _resolve_app_name,
+    execute_natural_command,
+    parse_instruction,
+    redact_command,
+)
 from winbot.main import app
 
 CHAIN = "abrir calc e esperar 1 segundos e fechar calc"
@@ -150,3 +157,80 @@ def test_shell_sai_com_exit() -> None:
     result = CliRunner().invoke(app, ["shell"], input="exit\n")
     assert result.exit_code == 0
     assert "Até logo" in result.stdout
+
+
+# --- Etapa 1 de Blindagem: indice, resolucao de nomes e memoria ------------
+
+
+def test_resolve_app_name_alias_indice_e_raw() -> None:
+    assert _resolve_app_name("calc") == "calc.exe"  # APP_ALIASES primeiro
+    database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
+    assert _resolve_app_name("chrome") == r"C:\apps\chrome.exe"
+    assert _resolve_app_name("app_inexistente") == "app_inexistente"  # raw puro
+
+
+def test_abrir_app_indexado_marca_target_para_allowlist() -> None:
+    database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
+    spec = parse_instruction("abrir chrome")[0]
+    assert spec.step.params["target"] == r"C:\apps\chrome.exe"
+    assert spec.step.params["indexed"] is True
+
+    policy = SecuritySettings()
+    enriched = _policy_for([spec], policy)
+    assert "chrome.exe" in enriched.allowed_apps
+    # A politica original nao e mutada: YAML continua com a allowlist antiga.
+    assert policy.allowed_apps == ["notepad.exe", "calc.exe", "explorer.exe"]
+    assert _policy_for(parse_instruction("abrir calc"), policy) is policy
+
+
+def test_redact_command_mascara_texto_de_digitar() -> None:
+    assert redact_command("digitar senha123") == "digitar texto (8 caractere(s))"
+    assert redact_command("digitar senha123 com enter") == (
+        "digitar texto (8 caractere(s)) com enter"
+    )
+    assert "senha123" not in redact_command("digitar senha123 e abrir calc")
+    assert redact_command("abrir calc") == "abrir calc"
+
+
+def test_log_registra_toda_execucao(mocker) -> None:
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    execute_natural_command("abrir calc", apply=False, policy=SecuritySettings())
+    row = database.get_recent_history()[0]
+    assert row["raw_command"] == "abrir calc"
+    assert row["success"] is True
+    assert "abrir calc.exe" in row["result_message"]
+
+
+def test_repetir_reexecuta_sem_loop(mocker) -> None:
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    execute_natural_command("abrir calc", apply=False, policy=SecuritySettings())
+
+    results = execute_natural_command("repetir", apply=False, policy=SecuritySettings())
+    assert results[0].label == "repetir"
+    assert "Reexecutando" in results[0].message
+    assert any("abrir calc.exe" in item.label for item in results)
+    # O ultimo sucesso continua sendo o comando real, nao "repetir".
+    assert database.get_last_successful_command() == "abrir calc"
+
+
+def test_repetir_sem_historico() -> None:
+    results = execute_natural_command("repetir ultimo", apply=False)
+    assert results[0].ok is False
+    assert "Nenhum comando anterior" in results[0].message
+
+
+def test_historico_exibe_ultimos_5() -> None:
+    for index in range(7):
+        database.log_command(f"abrir calc {index}", True, "OK")
+    results = execute_natural_command("ultimos comandos", apply=False)
+    assert len(results) == 5
+    assert all(item.ok for item in results)
+    assert results[0].label.startswith("#")
+
+
+def test_historico_mascara_senha_no_terminal() -> None:
+    database.log_command("digitar senha_super_secreta", True, "OK")
+    result = CliRunner().invoke(app, ["do", "historico"])
+    assert result.exit_code == 0
+    assert "senha_super_secreta" not in result.stdout
+    assert "texto (" in result.stdout

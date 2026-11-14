@@ -1,7 +1,7 @@
 # WinBot Core — Plano de Fundação e Arquitetura Comercial
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
-> não executado ponta a ponta) · Interface de pedidos `do`/`shell` ✅ validada.
+> não executado ponta a ponta) · `do`/`shell` ✅ · **Blindagem Etapa 1 ✅ validada**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -241,7 +241,40 @@ estreito. `main.py` ganhou `do` (ícones ✔/✘ via Rich) e `shell`
 `ps Remove-Item -Recurse ...` → ✘ BLOQUEADO, exit 1 (fail-closed). `shell` com
 pipe `abrir calc` + `sair` → ✔ e encerra. `do --dry-run` não dispara efeitos.
 
+## 13. Blindagem · Etapa 1 (14/11) ✅
+
+**Entregue:** `core/database.py` (SQLite em `~/.winbot/winbot.db`, WAL +
+`synchronous=NORMAL` em toda conexão, tabelas `installed_apps` / `command_history`,
+`upsert_apps` / `find_app` / `log_command` / `get_last_successful_command` /
+`get_recent_history` + `count_apps` / `get_apps` / `is_memory_command`);
+`engine/app_indexer.py` (199 apps indexados nesta máquina: `.lnk` recursivo dos
+dois Start Menu + `App Paths` HKLM/HKCU via `winreg`, sem COM, com limites duros);
+`commands/apps.py` (`sync` com spinner, `list --filter`); `main.py` registra
+`apps.app`.
+
+**Dispatcher:** auto-index uma vez quando a tabela está vazia; `_resolve_app_name`
+= `APP_ALIASES` → `find_app` → raw puro; `repetir`/`faz de novo`/`historico`/
+`ultimos comandos`; `log_command` em toda execução; `redact_command` para não
+vazar payload de `digitar` no terminal.
+
+**Decisões de segurança registradas:** apps do índice liberam só o próprio
+basename via `policy.model_copy` **dentro do dispatcher** — `workflow run` mantém
+a allowlist original e um YAML com `params.indexed` não bypassa nada. `.lnk` usa
+`os.startfile` com caminho fixo (não é `shell=True`). `raw_command` fica em texto
+claro no DB local (necessário para `repetir`), mas `do`/`historico` exibem versão
+mascarada. `get_last_successful_command` filtra comandos de memória (anti-loop).
+
+**Gates:** `pytest -q` → **124 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `apps sync` → 199 apps, `PRAGMA
+journal_mode` = `wal`; `do "abrir chrome" --dry-run` resolve o `.exe` do registro;
+`repetir` reexecuta o ciclo do calc sem loop; `historico` mostra 5 linhas.
+
+**Testes:** `tests/conftest.py` ganhou fixture `autouse` com `WINBOT_DB_PATH`
+isolado em `tmp_path` + `WINBOT_SKIP_APP_INDEX=1`, para nenhum teste tocar no
+banco real nem varrer o Windows de verdade.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
+Etapa 2 de Blindagem (escopo ainda a definir).
