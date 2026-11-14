@@ -238,8 +238,16 @@ class VoiceEngine:
     # ------------------------------------------------------------------
 
     def speak(self, text: str) -> None:
-        if text and text.strip():
-            self._tts_queue.put(text.strip())
+        if not text or not text.strip():
+            return
+        try:
+            from raves.engine.prosody import prepare_speech_text
+
+            text = prepare_speech_text(text)
+        except Exception:
+            pass
+        if text:
+            self._tts_queue.put(text)
 
     def _tts_worker(self) -> None:
         try:

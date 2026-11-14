@@ -7,7 +7,8 @@
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
 > Blindagem Etapa 6 ✅ · Setup Ollama Zero-Atrito ✅ ·
 > Interface Visual Etapa 7 ✅ · Integração Viva Etapa 8 ✅ ·
-> **Voz Natural (masculina/feminina) ✅** (WinRT Maria/Daniel + Piper opcional).
+> Voz Natural (masculina/feminina) ✅ ·
+> **Prosódia PT-BR + TTSEngine ✅** (siglas fonéticas, pausas, WinRT/Piper/pyttsx3).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `raves` (ver N1).
 
@@ -520,6 +521,22 @@ validadas em áudio real.
 Microsoft Maria (OneCore, qualidade boa mas não neural). O pt-BR masculino tem
 opção neural extra via Piper (faber) após `voice setup-tts`. Não há voz feminina
 neural pt-BR disponível offline nas bibliotecas gratuitas atuais.
+
+## 25. Voz Natural + Prosódia PT-BR (14/11) ✅
+
+**Entregue:** `engine/prosody.py` (`prepare_speech_text`: siglas/termos técnicos →
+pronúncia fonética PT-BR, pausas naturais em blocos longos, limpeza de markdown/
+caminhos); `engine/tts.py` reescrito com `TTSEngine` (prioridade Piper neural →
+WinRT SpeechSynthesis Maria/Daniel → pyttsx3), `NeuralSpeaker` (síntese em memória
++ `sounddevice.play` com barge-in via `sd.stop()`), `get_gender`/`set_gender`,
+`speak_text` atualizado; `commands/voice.py` ganhou `set-voice`, `test`,
+`setup-tts`; `settings_window.py` ganhou seletor de voz do TTS; `pyproject.toml`:
+`winrt-Windows.Media.SpeechSynthesis`, `piper-tts`.
+
+**Gates:** `pytest -q` → **236 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `voice set-voice masculina/feminina`
+persiste; `voice test` fala com a voz correta (WinRT Daniel/Maria); prosódia
+converte "VS Code" → "vê ésse côde", "CPU" → "cê pê ú", etc.
 
 ---
 

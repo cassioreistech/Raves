@@ -73,6 +73,78 @@ def _download_piper_model() -> Path | None:
         return None
 
 
+class NeuralSpeaker:
+    """Sintetizador neural Piper (pt-BR) com reprodução via sounddevice.
+
+    Sintetiza em memória (numpy int16) e reproduz com ``sd.play``, permitindo
+    barge-in instantâneo via ``sd.stop()``. Usado como backend premium para a
+    voz masculina quando o modelo está disponível.
+    """
+
+    def __init__(self, model_name: str = PIPER_MODEL_NAME) -> None:
+        self.model_name = model_name
+        self.model_path = PIPER_MODEL_DIR / f"{model_name}.onnx"
+
+    def is_available(self) -> bool:
+        config = PIPER_MODEL_DIR / f"{self.model_name}.onnx.json"
+        return self.model_path.is_file() and config.is_file()
+
+    def synthesize(self, text: str) -> tuple[Any, int] | None:
+        """Retorna (numpy array int16, sample_rate) ou None em falha."""
+        if not self.is_available():
+            return None
+        try:
+            import wave
+
+            import numpy as np
+            from piper import PiperVoice
+
+            voice = PiperVoice.load(self.model_path)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            try:
+                with wave.open(tmp_path, "wb") as wav_file:
+                    voice.synthesize_wav(text, wav_file)
+                with wave.open(tmp_path, "rb") as wav_file:
+                    rate = wav_file.getframerate()
+                    frames = wav_file.readframes(wav_file.getnframes())
+                    audio = np.frombuffer(frames, dtype=np.int16).copy()
+                return audio, rate
+            finally:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_path)
+        except Exception as exc:
+            logger.debug(f"neural_speaker: falha na síntese ({exc})")
+            return None
+
+    def speak(self, text: str) -> bool:
+        if not text or not text.strip():
+            return False
+        result = self.synthesize(text)
+        if result is None:
+            return False
+        audio, rate = result
+        if audio is None or audio.size == 0:
+            return False
+        try:
+            import sounddevice as sd
+
+            sd.play(audio, samplerate=rate)
+            sd.wait()
+            return True
+        except Exception as exc:
+            logger.debug(f"neural_speaker: falha na reprodução ({exc})")
+            return False
+
+    def stop(self) -> None:
+        try:
+            import sounddevice as sd
+
+            sd.stop()
+        except Exception:
+            pass
+
+
 class TTSEngine:
     """TTS offline com voz masculina/feminina e barge-in cooperativo."""
 
@@ -89,10 +161,18 @@ class TTSEngine:
     def speak(self, text: str) -> None:
         if not text or not text.strip():
             return
+        from raves.engine.prosody import prepare_speech_text
+
+        text = prepare_speech_text(text)
+        if not text:
+            return
         self._playing.set()
         self._stop_requested.clear()
         try:
             if self.gender == "masculina":
+                speaker = NeuralSpeaker()
+                if speaker.is_available() and speaker.speak(text):
+                    return
                 model_path = _piper_model_path()
                 if model_path is not None:
                     self._speak_piper(text, model_path)

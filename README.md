@@ -348,6 +348,24 @@ pyttsx3, best-effort).
 - Seletor também na Central de Configurações (aba Voz & Áudio).
 - `setup-tts` baixa o modelo Piper (~60 MB) para TTS neural masculino de alta qualidade.
 
+## Voz Natural (Masculina/Feminina, offline, prosódia PT-BR)
+
+```powershell
+.\.venv\Scripts\raves.exe voice set-voice masculina
+.\.venv\Scripts\raves.exe voice set-voice feminina
+.\.venv\Scripts\raves.exe voice test
+.\.venv\Scripts\raves.exe voice setup-tts   # baixa modelo Piper (pt-BR, masculino, neural)
+```
+
+- **Masculina:** WinRT Microsoft Daniel (pt-BR, OneCore) — com upgrade neural opcional via Piper (faber).
+- **Feminina:** WinRT Microsoft Maria (pt-BR, OneCore).
+- `engine/prosody.py` converte siglas/termos técnicos para pronúncia fonética PT-BR
+  (VS Code → vê ésse côde, CPU → cê pê ú, RAM → memória ran, PDF → pê dê éfe,
+  Chrome → crôme, WhatsApp → uátizápi) e insere pausas naturais.
+- Velocidade ajustada para ~170 (ritmo conversacional). Preferência persistida em
+  `voice_profile.tts_gender`. Seletor também na Central de Configurações.
+- `setup-tts` baixa o modelo Piper (~60 MB) para TTS neural masculino de alta qualidade.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.raves/raves.db` (`RAVES_DB_PATH` permite isolar em testes).
