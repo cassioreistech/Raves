@@ -11,6 +11,7 @@ comandos (``repetir`` / ``historico``) e registro de toda execucao.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import tempfile
@@ -23,6 +24,7 @@ from raves.core import database
 from raves.core.config import SecuritySettings, WorkflowStep, load_settings
 from raves.core.diagnostics import capture_error_snapshot
 from raves.core.learner import BehaviorLearner
+from raves.core.lexicon import normalize_to_canonical
 from raves.core.logger import audit, logger
 from raves.core.security import RiskLevel, SecurityViolationError, classify_risk
 from raves.core.session import session as _session
@@ -255,6 +257,12 @@ APP_ALIASES: dict[str, str] = {
     "notepad": "notepad.exe",
     "explorador": "explorer.exe",
     "explorer": "explorer.exe",
+    "navegador": "chrome.exe",
+    "browser": "chrome.exe",
+    "editor": "code.exe",
+    "planilha": "excel.exe",
+    "texto": "notepad.exe",
+    "pasta": "explorer.exe",
 }
 
 # Stubs do Windows que apenas iniciam outro processo. Sem estes aliases,
@@ -321,15 +329,37 @@ def _normalize_instruction(text: str) -> str:
     return " ".join(part for part in cleaned if part).strip()
 
 
+_ARTICLES = {"o", "a", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da", "the"}
+
+
+def _strip_articles(text: str) -> str:
+    tokens = text.split()
+    while tokens and tokens[0].lower() in _ARTICLES:
+        tokens.pop(0)
+    return " ".join(tokens)
+
+
 def _resolve_app_name(raw: str) -> str:
-    """APP_ALIASES -> ``database.find_app`` -> raw puro (sem acrescentar .exe)."""
+    """APP_ALIASES -> ``database.find_app`` -> raw puro (sem acrescentar .exe).
+
+    Artigos iniciais ('o', 'a', 'um'...) sao descartados: 'abrir o chrome' e
+    'abrir chrome' resolvem para o mesmo alvo.
+    """
     cleaned = raw.strip().strip("\"'").strip()
     if not cleaned:
         raise ValueError("nome do aplicativo vazio")
-    key = cleaned.lower()
+    key = _strip_articles(cleaned).lower()
+    if not key:
+        key = cleaned.lower()
     if key in APP_ALIASES:
         return APP_ALIASES[key]
     found = database.find_app(key)
+    if found:
+        return found
+    # Tenta tambem a forma original (sem strip) como fallback.
+    if cleaned.lower() in APP_ALIASES:
+        return APP_ALIASES[cleaned.lower()]
+    found = database.find_app(cleaned)
     if found:
         return found
     return cleaned
@@ -917,7 +947,7 @@ def _handle_voice_training(raw: str) -> list[DispatchResult]:
     return [DispatchResult("voz", False, f"Comando de treino não reconhecido: '{raw}'")]
 
 
-def execute_natural_command(
+def _execute_natural_command_impl(
     instruction: str,
     *,
     apply: bool = True,
@@ -933,6 +963,14 @@ def execute_natural_command(
     """
     ensure_app_index()
     raw = _normalize_instruction(instruction.strip())
+    # Lexico rapido: multiplica cobertura de vocabulario (O(1)).
+    canonical = normalize_to_canonical(raw)
+    if canonical and canonical != raw:
+        raw = canonical
+    # Cache semantico: frase ja aprendida -> execucao instantanea.
+    learned = database.lookup_learned_phrase(raw)
+    if learned:
+        raw = learned
     active = policy if policy is not None else load_settings().security
 
     # Insight primeiro: esses prefixos tambem estao em MEMORY_PREFIXES (anti-loop),
@@ -1092,6 +1130,11 @@ def execute_natural_command(
                     confirm_fn=confirm_fn,
                     auto_yes=auto_yes,
                 )
+                # Aprendizado de frase: salva o par (frase_usuario, comando) para
+                # execucao instantanea nas proximas vezes (cache semantico).
+                if results and all(item.ok and not item.blocked for item in results):
+                    with contextlib.suppress(Exception):
+                        database.save_learned_phrase(raw, str(action))
                 _log(raw, results)
                 return results
             text = str(reply.get("text", "")).strip()
@@ -1114,3 +1157,34 @@ def execute_natural_command(
     ]
     _log(raw, result)
     return result
+
+
+def execute_natural_command(
+    instruction: str,
+    *,
+    apply: bool = True,
+    policy: SecuritySettings | None = None,
+    confirm_fn: Any = None,
+    auto_yes: bool = False,
+) -> list[DispatchResult]:
+    """Wrapper publico: executa + registra turnos de conversa + cache semantico."""
+    raw_original = (instruction or "").strip()
+    results = _execute_natural_command_impl(
+        instruction, apply=apply, policy=policy, confirm_fn=confirm_fn, auto_yes=auto_yes
+    )
+    # Memoria conversacional (Etapa 10): registra user + assistant.
+    try:
+        database.append_turn("user", raw_original, None)
+        if results:
+            summary = " | ".join(
+                ("OK" if item.ok and not item.blocked else "X")
+                + " "
+                + item.label
+                + ": "
+                + item.message
+                for item in results
+            )[:500]
+            database.append_turn("assistant", summary, None)
+    except Exception:
+        pass
+    return results

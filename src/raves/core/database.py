@@ -97,6 +97,21 @@ CREATE TABLE IF NOT EXISTS app_meta (
     value TEXT
 );
 
+-- Memoria conversacional (Etapa 10).
+CREATE TABLE IF NOT EXISTS conversation_turns (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    role       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    intent     TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS learned_phrases (
+    phrase            TEXT PRIMARY KEY,
+    canonical_command TEXT NOT NULL,
+    hits              INTEGER DEFAULT 1,
+    updated_at        TEXT
+);
+
 -- Aprendizado fonetico (Etapa 3).
 CREATE TABLE IF NOT EXISTS speech_corrections (
     heard_phrase  TEXT PRIMARY KEY,
@@ -585,6 +600,99 @@ def purge_observer_data() -> None:
         conn.execute("DELETE FROM user_interests")
         conn.execute("DELETE FROM learned_routines")
         conn.execute("DELETE FROM app_meta")
+
+
+# ---------------------------------------------------------------------------
+# Memoria conversacional deslizante (conversation_turns)
+# ---------------------------------------------------------------------------
+
+
+def append_turn(role: str, text: str, intent: str | None = None) -> None:
+    """Registra um turno. Mantém apenas os últimos 50 (auto-limpeza)."""
+    role = (role or "").strip().lower()
+    text = (text or "").strip()
+    if not role or not text:
+        return
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO conversation_turns (role, text, intent, created_at) VALUES (?, ?, ?, ?)",
+            (role, text, intent, _utcnow()),
+        )
+        conn.execute(
+            "DELETE FROM conversation_turns WHERE id NOT IN "
+            "(SELECT id FROM conversation_turns ORDER BY id DESC LIMIT 50)"
+        )
+
+
+def get_recent_turns(limit: int = 6) -> list[dict[str, Any]]:
+    """Últimos turnos em ordem cronológica (mais antigo -> mais recente)."""
+    capped = max(1, min(int(limit), 50))
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, role, text, intent, created_at FROM conversation_turns "
+            "ORDER BY id DESC LIMIT ?",
+            (capped,),
+        ).fetchall()
+    result = [dict(row) for row in rows]
+    result.reverse()
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Cache semantico (learned_phrases)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_phrase(text: str) -> str:
+    return " ".join((text or "").strip().lower().split())
+
+
+def lookup_learned_phrase(text: str) -> str | None:
+    """Retorna o comando canônico se a frase já foi aprendida, senão None."""
+    key = _normalize_phrase(text)
+    if not key:
+        return None
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT canonical_command FROM learned_phrases WHERE phrase = ?", (key,)
+        ).fetchone()
+    return str(row["canonical_command"]) if row is not None else None
+
+
+def save_learned_phrase(phrase: str, canonical_command: str) -> bool:
+    """Grava (ou incrementa hits de) uma frase aprendida."""
+    key = _normalize_phrase(phrase)
+    canonical = (canonical_command or "").strip()
+    if not key or not canonical:
+        return False
+    now = _utcnow()
+    with _connect() as conn:
+        existing = conn.execute(
+            "SELECT hits FROM learned_phrases WHERE phrase = ?", (key,)
+        ).fetchone()
+        if existing is None:
+            conn.execute(
+                "INSERT INTO learned_phrases (phrase, canonical_command, hits, updated_at) "
+                "VALUES (?, ?, 1, ?)",
+                (key, canonical, now),
+            )
+        else:
+            conn.execute(
+                "UPDATE learned_phrases SET canonical_command = ?, hits = hits + 1, "
+                "updated_at = ? WHERE phrase = ?",
+                (canonical, now, key),
+            )
+    return True
+
+
+def get_learned_phrases(limit: int = 50) -> list[dict[str, Any]]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT phrase, canonical_command, hits, updated_at "
+            "FROM learned_phrases ORDER BY hits DESC, phrase ASC LIMIT ?",
+            (max(1, min(int(limit), 500)),),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 # ---------------------------------------------------------------------------

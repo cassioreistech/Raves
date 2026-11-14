@@ -137,7 +137,12 @@ def do_cmd(
         auto_yes=yes,
     )
     render_results(results)
-    if any(not item.ok or item.blocked for item in results):
+    # Foco que falha não é falha fatal (a ação seguinte ainda pode rodar).
+    fatal = any(
+        (not item.ok or item.blocked) and not item.label.lower().startswith("focar")
+        for item in results
+    )
+    if fatal:
         console.print("[bold red]Pedido interrompido (fail-closed).[/bold red]")
         raise typer.Exit(code=1)
     console.print(f"[bold green]{len(results)} ação(ões) concluída(s).[/bold green]")

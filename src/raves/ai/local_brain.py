@@ -19,7 +19,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from raves.core import database
 from raves.core.config import load_settings
 from raves.core.learner import BehaviorLearner
 from raves.core.logger import logger
@@ -202,7 +201,9 @@ class LocalBrain:
         return {"text": text, "action": action}
 
     def _system_prompt(self, user_text: str) -> str:
-        interests = database.get_interest_profile(limit=5)
+        from raves.core import database as _db
+
+        interests = _db.get_interest_profile(limit=5)
         interest_text = (
             ", ".join(
                 f"{item['keyword']} ({item['category']}, peso {item['effective_weight']:.2f})"
@@ -218,6 +219,15 @@ class LocalBrain:
             recommendations = []
         rec_text = " | ".join(recommendations[:3]) or "nenhuma"
 
+        # Memoria conversacional (Etapa 10): ultimos 4 turnos para dialogo continuo.
+        turns_text = ""
+        try:
+            recent = _db.get_recent_turns(limit=4)
+            if recent:
+                turns_text = " | ".join(f"{item['role']}: {item['text'][:80]}" for item in recent)
+        except Exception:
+            turns_text = ""
+
         commands = (
             "abrir, fechar, focar, digitar, atalho, limpar temp, esperar, ps, repetir, "
             "historico, sugestoes, meu perfil, ler tela, clicar no texto, flow record"
@@ -230,6 +240,7 @@ class LocalBrain:
             "'ACTION: <comando_raves>'. Caso contrário, responda conversacionalmente. "
             f"Interesses do usuário: {interest_text}. "
             f"Recomendações recentes: {rec_text}."
+            + (f" Histórico recente: {turns_text}." if turns_text else "")
         )
         lowered = user_text.lower()
         tokens = ("area de transferencia", "área de transferência", "clipboard")

@@ -125,6 +125,10 @@ def focus_window(title_substring: str, *, dry_run: bool = True) -> bool:
     audit(f"focus_window title={title_substring!r} dry_run={dry_run}")
     if dry_run:
         return True
+    # Dá tempo à janela recém-lançada se estabilizar (evita falha por timing).
+    import time
+
+    time.sleep(0.4)
 
     target_hwnd: int | None = None
 

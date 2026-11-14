@@ -100,15 +100,17 @@ def test_ps_na_blacklist_e_fail_closed() -> None:
 
 
 def test_clean_temp_dry_run_nao_apaga(tmp_path: Path, mocker) -> None:
-    mocker.patch("raves.core.dispatcher.tempfile.gettempdir", return_value=str(tmp_path))
-    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
-    (tmp_path / "pasta").mkdir()
+    clean_dir = tmp_path / "clean"
+    clean_dir.mkdir()
+    (clean_dir / "a.txt").write_text("x", encoding="utf-8")
+    (clean_dir / "pasta").mkdir()
+    mocker.patch("raves.core.dispatcher.tempfile.gettempdir", return_value=str(clean_dir))
 
     results = execute_natural_command("limpar temp", apply=False, policy=SecuritySettings())
     assert results[0].ok is True
     assert "1 arquivo(s) seriam removidos" in results[0].message
-    assert (tmp_path / "a.txt").exists()
-    assert (tmp_path / "pasta").exists()
+    assert (clean_dir / "a.txt").exists()
+    assert (clean_dir / "pasta").exists()
 
 
 def test_clean_temp_apply_remove_so_arquivos_topo(tmp_path: Path, mocker) -> None:
