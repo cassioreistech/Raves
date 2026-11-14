@@ -305,6 +305,11 @@ def _run_tray() -> None:
     tray_icon = _build_tray_icon()
     tray_icon.show()
 
+    # Mostra o HUD na abertura para o usuário saber que o assistente está vivo.
+    if _bridge is not None:
+        _bridge.set_state("LISTENING", "Digite ou fale sua ordem...")
+        _bridge.request_show()
+
     _hotkey_stop.clear()
     _hotkey_thread = threading.Thread(target=_global_hotkey_loop, name="winbot-hotkey", daemon=True)
     _hotkey_thread.start()

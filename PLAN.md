@@ -465,6 +465,33 @@ bootstrap instala templates padrão.
 `test_dispatcher.py` (normalizer, anáfora, tocar musica, classify_risk,
 confirmação YELLOW/RED, bypass --yes, do --yes).
 
+## 23. Integração Viva · Etapa 8 (14/11) ✅
+
+**Entregue:** `core/autostart.py` (HKCU Run, sem admin: enable/disable/is_enabled);
+`core/templates.py` (4 workflows de fábrica instalados se a pasta estiver vazia:
+modo_foco, limpeza_rapida, bom_dia, organizar_downloads); `ui/hud_overlay.py` ganhou
+campo QLineEdit discreto (Enter → dispatcher em worker thread, ESC oculta);
+`ui/settings_window.py` ganhou checkbox "Iniciar com Windows" e botão "+ Criar Novo
+Workflow" (modal com editor YAML); `engine/voice.py` emite sinais no StateBridge
+(LISTENING com audio_level, THINKING, SPEAKING, SUCCESS/ERROR) e HUD mostra input
+rápido; `tray.py` "Chamar Assistente" dispara ciclo de voz em background;
+`main.py` bootstrap instala templates padrão.
+
+**Segurança:** RiskLevel GREEN/YELLOW/RED + classify_risk + classify_workflow;
+confirm_fn callback + auto_yes bypass; anáforas resolvidas via contexto local da
+cadeia; foco não-fatal com AttachThreadInput; `windows_api.focus_window`
+workaround para processos destacados.
+
+**Gates:** `pytest -q` → **225 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: normalizer `por favor abrir calc agora` →
+`abrir calc`; anáfora `abrir notepad e digitar ola mundo e fechar isso --yes` →
+4 ações OK; `limpar temp` RED com prompt [s/N]; `--yes` bypassa; `tocar musica`
+abre player indexado; `winbot ui` e `winbot tray` estáveis.
+
+**Testes:** `tests/test_session.py` (2), `tests/test_autostart.py` (2),
+`tests/test_templates.py` (2), `tests/test_ui_hud.py` (5), novos casos em
+`test_dispatcher.py`.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile

@@ -7,6 +7,7 @@ estado (LISTENING/THINKING/SPEAKING/ERROR) e ao nível de áudio.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer
@@ -189,6 +190,17 @@ class HudOverlay(QWidget):
                 summary = " | ".join(item.message for item in results)[:120]
                 ok = all(item.ok and not item.blocked for item in results)
                 self.bridge.set_state("SUCCESS" if ok else "ERROR", summary or text[:80])
+                # Fala a resposta se pyttsx3 estiver disponível (best-effort).
+                try:
+                    import pyttsx3
+
+                    engine = pyttsx3.init()
+                    engine.say(summary if ok else "Pedido interrompido.")
+                    engine.runAndWait()
+                    with contextlib.suppress(Exception):
+                        engine.stop()
+                except Exception:
+                    pass
             except Exception as exc:
                 self.bridge.set_state("ERROR", str(exc)[:80])
 

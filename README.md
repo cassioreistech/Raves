@@ -311,6 +311,23 @@ Central de Configurações (Dark HUD, 4 abas): Voz & Áudio, Cérebro Local
 (Ollama), Workflows & Gatilhos, Perfil & Licença. Tudo via PySide6 (Qt6), ~35 MB
 de RAM, aceleração vetorial.
 
+## Integração Viva · Etapa 8 (HUD + Voz + Input Rápido + Produtividade)
+
+```powershell
+.\.venv\Scripts\winbot.exe tray          # HUD orbital + bandeja + atalho global
+.\.venv\Scripts\winbot.exe ui            # Central de Configurações
+```
+
+- HUD Orbital reage em tempo real: anéis pulsando com o volume do microfone
+  (LISTENING), acelerando (THINKING), pulsando no ritmo do TTS (SPEAKING).
+- Campo de texto discreto no HUD (Enter executa via dispatcher em worker thread,
+  ESC oculta).
+- Autostart via `HKCU\...\Run` (sem admin) — checkbox na aba Voz & Áudio.
+- 4 workflows de fábrica instalados automaticamente se a pasta estiver vazia.
+- Botão "+ Criar Novo Workflow" na aba Workflows (modal com editor YAML).
+- Classificação de risco GREEN/YELLOW/RED com confirmação interativa e `--yes`.
+- Anáforas: `abrir notepad e digitar ola mundo e fechar isso`.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).
