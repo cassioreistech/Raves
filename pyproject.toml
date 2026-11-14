@@ -26,6 +26,8 @@ dependencies = [
     "webrtcvad-wheels>=2.0.14",                 # deteccao de voz (wheel pre-compilado; fornece o modulo webrtcvad)
     "faster-whisper>=1.0.0",                    # STT offline (CTranslate2)
     "pyttsx3>=2.90",                            # TTS offline (SAPI5)
+    "pystray>=0.19.5",                          # System Tray do Windows
+    "Pillow>=10.0.0",                           # icone do tray
     "cryptography>=42.0.0",                      # licenciamento Ed25519
 ]
 

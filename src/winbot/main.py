@@ -11,7 +11,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from winbot import __version__
-from winbot.commands import apps, insights, rpa_tools, schedule, system, voice, workflow
+from winbot.commands import apps, insights, rpa_tools, schedule, system, tray, voice, workflow
 from winbot.commands._interactive import enforce_license, interactive_loop, render_results
 from winbot.core.config import load_settings
 from winbot.core.dispatcher import execute_natural_command, redact_command
@@ -41,6 +41,7 @@ app.add_typer(rpa_tools.app, name="rpa")
 app.add_typer(apps.app, name="apps")
 app.add_typer(insights.app, name="insights")
 app.add_typer(voice.app, name="voice")
+app.add_typer(tray.app, name="tray")
 
 console = Console()
 

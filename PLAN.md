@@ -2,7 +2,7 @@
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
-> RPA Nativo Etapa 2 ✅ · **Áudio Etapa 3 ✅ validada**.
+> RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ · **System Tray Etapa 4 ✅ validado**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -327,6 +327,21 @@ etapa futura. Nada usa nuvem/API.
 
 ---
 
+## 16. System Tray · Etapa 4 (14/11) ✅
+
+**Entregue:** `commands/tray.py` (`winbot tray`), ícone 64×64 gerado em memória
+(Pillow, sem arquivo externo), menu com Ativar/Pausar Voz, Abrir Shell
+(`CREATE_NEW_CONSOLE`, sem `shell=True`), Executar Workflow (submenu dinâmico de
+`~/.winbot/workflows`), Sair. Observador sobe em background; `pystray` 0.19.5 +
+Pillow 13.0.0 adicionados ao `pyproject.toml`.
+
+**Gates:** `pytest -q` → **171 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `winbot tray` abre o ícone na bandeja e
+encerra limpo em "Sair"; `winbot voice calibrate` e `winbot voice listen`
+continuam funcionando.
+
+---
+
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 4 de Blindagem (escopo a definir).
+Etapa 5 de Blindagem (escopo a definir).

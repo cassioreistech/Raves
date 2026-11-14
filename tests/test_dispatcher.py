@@ -159,6 +159,25 @@ def test_shell_sai_com_exit() -> None:
     assert "Até logo" in result.stdout
 
 
+# --- Etapa 3 (Engenharia de Audio) -------------------------------------------
+
+
+def test_voice_training_quando_eu_disser() -> None:
+    results = execute_natural_command("quando eu disser crôme entenda chrome", apply=False)
+    assert results[0].ok is True
+    assert "crôme" in results[0].message and "chrome" in results[0].message
+    assert database.apply_speech_corrections("abrir crôme") == "abrir chrome"
+
+
+def test_voice_training_aprender_palavra_e_memorizar_termo() -> None:
+    assert execute_natural_command("aprender palavra vé éssi code", apply=False)[0].ok
+    assert execute_natural_command("memorizar termo uatsap", apply=False)[0].ok
+    assert "vé éssi code" in database.get_custom_vocab()
+    assert "uatsap" in database.get_custom_vocab()
+    # Duplicata nao regrava.
+    assert execute_natural_command("aprender palavra uatsap", apply=False)[0].ok is False
+
+
 # --- Etapa 2 (RPA Nativo UIA) ---------------------------------------------
 
 

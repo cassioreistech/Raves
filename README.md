@@ -116,6 +116,18 @@ Motor `engine/uia_engine.py`:
   `winbot rpa inspect`
 - `foreground_window_title()`
 
+## System Tray · Etapa 4 (execução em segundo plano)
+
+```powershell
+.\.venv\Scripts\winbot.exe tray
+```
+
+Roda o WinBot discretamente ao lado do relógio do Windows (ícone gerado em
+memória, sem arquivo externo). Menu: **Ativar/Pausar Voz**, **Abrir Shell**,
+**Executar Workflow** (submenu com os YAMLs de `~/.winbot/workflows`) e **Sair**.
+O observador de contexto sobe em background; `CREATE_NEW_CONSOLE` abre o shell em
+janela separada sem `shell=True`.
+
 ## Engenharia de Áudio · Etapa 3 (STT/TTS offline, barge-in, aprendizado fonético)
 
 Pipeline de voz 100% offline. Nenhuma rede, nenhum modelo em nuvem.
