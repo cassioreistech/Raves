@@ -6,8 +6,6 @@ Uma violação de segurança aborta a rotina mesmo com continue_on_error=true.
 
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -18,16 +16,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from winbot.core.config import (
-    SecuritySettings,
-    WorkflowDefinition,
-    WorkflowStep,
-    load_settings,
-)
+from winbot.core.config import WorkflowDefinition, load_settings
+from winbot.core.dispatcher import execute_step as _execute_step
 from winbot.core.licensing import LicenseError, check_license_or_raise
 from winbot.core.logger import logger
-from winbot.core.security import SecurityViolationError
-from winbot.engine import gui, shell, windows_api
 
 app = typer.Typer(help="Gerencia e executa rotinas automatizadas (Workflows YAML).")
 console = Console()
@@ -36,76 +28,9 @@ console = Console()
 WORKFLOWS_DIR = Path.home() / ".winbot" / "workflows"
 
 
-@dataclass(frozen=True)
-class StepOutcome:
-    ok: bool
-    message: str
-    blocked: bool = False
-
-
-def _execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool) -> StepOutcome:
-    action, params = step.action, step.params
-    try:
-        if action == "powershell":
-            res = shell.run_powershell(
-                str(params.get("command", "")),
-                timeout=int(params.get("timeout", 30)),
-                policy=policy,
-                dry_run=dry_run,
-            )
-            if res.simulated:
-                return StepOutcome(True, "simulado")
-            message = res.stdout.strip() if res.success else res.stderr.strip()
-            return StepOutcome(res.success, message or "sem saída")
-
-        if action == "launch_app":
-            ok = windows_api.launch_app(
-                str(params.get("target", "")),
-                params.get("args"),
-                dry_run=dry_run,
-                policy=policy,
-            )
-            return StepOutcome(ok, f"App iniciado: {params.get('target')}" if ok else "Falha")
-
-        if action == "kill_process":
-            count = windows_api.kill_process_by_name(
-                str(params.get("name", "")), dry_run=dry_run, policy=policy
-            )
-            suffix = "seriam encerradas" if dry_run else "encerrada(s)"
-            return StepOutcome(True, f"{count} instância(s) {suffix}")
-
-        if action == "focus_window":
-            ok = windows_api.focus_window(str(params.get("title", "")), dry_run=dry_run)
-            return StepOutcome(ok, "Janela focada" if ok else "Janela não encontrada")
-
-        if action == "gui_click":
-            detail = gui.click_at(int(params["x"]), int(params["y"]), dry_run=dry_run)
-            return StepOutcome(True, detail)
-
-        if action == "gui_click_image":
-            detail = gui.click_image(
-                str(params["image"]),
-                dry_run=dry_run,
-                timeout=float(params.get("timeout", 10)),
-            )
-            return StepOutcome(detail != "imagem não encontrada na tela", detail)
-
-        if action == "gui_type":
-            detail = gui.type_text_safe(str(params["text"]), dry_run=dry_run)
-            return StepOutcome(True, detail)
-
-        if action == "gui_hotkey":
-            detail = gui.hotkey([str(key) for key in params["keys"]], dry_run=dry_run)
-            return StepOutcome(True, detail)
-
-        seconds = float(params.get("seconds", 1))
-        if not dry_run:
-            time.sleep(seconds)
-        return StepOutcome(True, f"Aguardaria {seconds}s" if dry_run else f"Aguardou {seconds}s")
-    except SecurityViolationError as exc:
-        return StepOutcome(False, str(exc), blocked=True)
-    except OSError as exc:
-        return StepOutcome(False, str(exc))
+# Execução centralizada em core/dispatcher.py: uma única implementação das travas
+# de segurança para `workflow run`, `winbot do` e `winbot shell`.
+# Reexportado para manter a API usada pelos testes existentes.
 
 
 def _resolve_path(name: str) -> Path:

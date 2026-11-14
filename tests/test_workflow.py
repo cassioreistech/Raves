@@ -27,7 +27,7 @@ def test_dry_run_nao_executa_nada(mocker) -> None:
     proc = mocker.patch("winbot.engine.shell.subprocess.run")
     popen = mocker.patch("winbot.engine.windows_api.subprocess.Popen")
     enum = mocker.patch("winbot.engine.windows_api.win32gui.EnumWindows")
-    sleep = mocker.patch("winbot.commands.workflow.time.sleep")
+    sleep = mocker.patch("winbot.core.dispatcher.time.sleep")
 
     wf = _load(EXAMPLE)
     outcomes = [
@@ -52,7 +52,7 @@ def test_acoes_gui_em_dry_run_nao_encostam_no_pyautogui(mocker) -> None:
 
 
 def test_hotkey_proibida_no_workflow_e_fail_closed() -> None:
-    from winbot.commands.workflow import StepOutcome
+    from winbot.core.dispatcher import StepOutcome
 
     wf = WorkflowDefinition.model_validate(
         {

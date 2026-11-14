@@ -131,6 +131,7 @@ WorkflowAction = Literal[
     "gui_click_image",
     "gui_type",
     "gui_hotkey",
+    "clean_temp",
 ]
 MAX_WAIT_SECONDS = 60.0
 

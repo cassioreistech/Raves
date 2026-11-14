@@ -5,7 +5,10 @@
 # --include-package=comtypes é OBRIGATÓRIO: pywinauto -> comtypes gera wrappers COM
 # via importlib em runtime. Sem isso o .exe compila mas falha com
 # "ModuleNotFoundError: No module named 'comtypes.stream'".
-$ErrorActionPreference = "Stop"
+# Continue, nao Stop: no PowerShell 5.1 o stderr de um comando nativo (Nuitka
+# escreve progresso em stderr) vira NativeCommandError e aborta o script antes
+# da checagem de $LASTEXITCODE. O fail-fast fica explicito nos if abaixo.
+$ErrorActionPreference = "Continue"
 $py = ".\.venv\Scripts\python.exe"
 
 & $py -c "import win32api, win32com, pywinauto, pyautogui, pyperclip, cryptography; print('imports nativos OK')"

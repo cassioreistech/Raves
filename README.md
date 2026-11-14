@@ -50,6 +50,45 @@ python -m uv venv --python 3.12 --seed .venv
 Execução real exige `--apply` **e** `security.allow_shell=true` em
 `%LOCALAPPDATA%\WinBot\settings.yaml`.
 
+## Pedidos em linguagem natural (`do` / `shell`)
+
+Sem YAML e sem LLM: `core/dispatcher.py` mapeia cada frase por regex para uma ação
+do engine. A cadeia usa ` e ` como separador, mas só quebra quando depois dele vem
+um verbo conhecido — `digitar João e Maria` continua sendo um único texto.
+
+```powershell
+.\.venv\Scripts\winbot.exe do "abrir calc e esperar 1 segundos e fechar calc"
+.\.venv\Scripts\winbot.exe do "digitar Olá com enter e atalho ctrl+v" --dry-run
+.\.venv\Scripts\winbot.exe shell          # loop até 'sair' / 'exit' / Ctrl+C
+```
+
+| Pedido | Ação |
+|---|---|
+| `abrir <app>` | `launch_app` (allowlist; `calc` → `calc.exe`) |
+| `fechar <app>` | `kill_process` (denylist) |
+| `focar <janela>` | `focus_window` por substring do título |
+| `digitar <texto>` | `gui_type` via clipboard; sufixo ` com enter` dispara `Enter` |
+| `atalho <teclas>` | `gui_hotkey` — aceita `ctrl+c`, `ctrl + v` |
+| `limpar temp` | `clean_temp` |
+| `esperar <N> segundos` | `wait` (0–60 s, validado pelo schema) |
+| `ps <comando>` | `powershell` via `.ps1` temporário |
+
+**Diferença importante:** ao contrário de `workflow run` (dry-run por padrão),
+`do` e `shell` **executam imediatamente** — o pedido digitado é a autorização
+explícita do operador. Use `--dry-run` para simular. Todas as travas continuam
+ativas: allowlists, denylist de processos/hotkeys, `FAILSAFE`, blacklist,
+auditoria e fail-closed (para no primeiro ✘/bloqueio). `ps` só roda de fato com
+`security.allow_shell=true`; sem isso é bloqueado.
+
+Escopo de **`limpar temp`** (decisão N3): apenas arquivos regulares **diretos** de
+`%TEMP%`; sem recursão, sem diretórios, sem symlinks, ignora arquivos em uso.
+Nunca toca nas pastas `onefile_*` do binário Nuitka.
+
+`fechar calc` testa aliases explícitos (`Calculator.exe` / `CalculatorApp.exe`):
+no Windows 10/11 o `calc.exe` é apenas um stub. O texto de `digitar` nunca aparece
+no rótulo nem em log (pode ser senha). Ícones ✔/✘ em UTF-8, com fallback ASCII
+`OK`/`X` em consoles cp1252 que não aceitarem o reconfigure.
+
 ## Schema de workflow
 
 Ações: `powershell`, `launch_app`, `kill_process`, `focus_window`, `wait`,
@@ -115,6 +154,42 @@ Ferramenta administrativa — **nunca distribuir**:
 usuário em `%LOCALAPPDATA%\WinBot\settings.yaml`. Workflows do usuário em
 `~/.winbot/workflows/`.
 
+## Build de distribuição (Passo 4)
+
+```powershell
+# .exe onefile validado em dist\winbot\winbot.exe
+.\scripts\build.ps1
+
+# .exe + instalador Inno Setup em dist\installer\WinBotSetup-<versao>.exe
+.\scripts\build.ps1 -Installer -Version 0.1.0
+```
+
+`build.ps1` compila `scripts/winbot_entry.py` com Nuitka, valida o binário
+(`version`, `--help`, `license`, um workflow em DRY-RUN) e, com `-Installer`,
+chama `ISCC.exe` sobre `installer.iss`. O instalador coloca o `.exe` em
+`{autopf}\WinBot`, adiciona a pasta ao PATH (opcional), cria o atalho
+*WinBot Console* e instala `licensing.enabled: true` em
+`%LOCALAPPDATA%\WinBot\settings.yaml` **somente se o arquivo não existir**.
+
+Variáveis de ambiente do build:
+
+| Variável | Uso |
+|---|---|
+| `WINBOT_ISCC` | caminho do `ISCC.exe` (detectado automaticamente) |
+| `WINBOT_SIGN_PFX` / `WINBOT_SIGN_PASSWORD` | assinam `.exe` e instalador via `signtool` |
+| `WINBOT_SIGNTOOL` | caminho do `signtool.exe` |
+| `WINBOT_SIGN_TIMESTAMP_URL` | servidor de timestamp (padrão DigiCert) |
+
+> Sem certificado (**D3** pendente) o build é válido, mas o SmartScreen alerta
+> o cliente. `-SkipSign` silencia o aviso em CI de desenvolvimento.
+>
+> `-Standalone` troca `--onefile` por pasta `.dist` (startup mais rápido); o
+> `installer.iss` empacota os dois formatos sem alteração.
+
+CI: `.github/workflows/ci.yml` roda os gates em todo push/PR; `release.yml`
+roda em tags `v*` e gera o instalador como artifact. O segredo
+`WINBOT_SIGN_PFX_BASE64` + `WINBOT_SIGN_PASSWORD` habilita a assinatura no CI.
+
 ## Status
 
-Passos 1, 2 e 3 executados e validados. Roadmap e decisões em `PLAN.md`.
+Passos 1, 2 e 3 executados e validados. Passo 4 implementado, em validação local. Roadmap e decisões em `PLAN.md`.

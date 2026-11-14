@@ -1,7 +1,8 @@
 # WinBot Core — Plano de Fundação e Arquitetura Comercial
 
-> **Status:** Passos 1, 2 e 3 ✅ executados e validados · **Alvo:** CLI de automação
-> Windows, software comercial, entregue como binário Windows.
+> **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
+> não executado ponta a ponta) · Interface de pedidos `do`/`shell` ✅ validada.
+> **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
 ## 1. Decisões tomadas
@@ -101,7 +102,7 @@ ligar apenas no build de distribuição.
 | **1. Fundação** ✅ | uv/venv, pyproject, src-layout, ruff/pyright/pytest | Seção 9 |
 | **2. Motor + Workflows** ✅ | `security.py` → `engine/` → schema YAML → `workflow run/list` | Seção 10 |
 | **3. GUI/RPA + Agendamento + Licença** ✅ | `gui.py`, `schedule.py`, `rpa_tools.py`, `licensing.py`, `keygen.py` | Seção 11 |
-| **4. Build & CI (Final)** | Nuitka `.exe` protegido, Inno Setup, `build.ps1`, `installer.iss`, Actions | instalador assinado gerado no CI |
+| **4. Build & CI (Final)** | Nuitka `.exe` protegido, Inno Setup, `build.ps1`, `installer.iss`, Actions | `.exe` validado + instalador gerado (local e CI) |
 | 5. Distribuição | download, update checker, rollback | instalação limpa em VM sem Python |
 
 ## 6. Decisões pendentes
@@ -110,18 +111,24 @@ ligar apenas no build de distribuição.
 - **D3** — certificado de assinatura de código? Sem ele, SmartScreen alerta o cliente.
 - **D4** — auto-update ou instalador manual por versão?
 - **N1** — pasta no disco é `Raves`, produto é `winbot`. Renomear? (não fazer sem confirmação)
-- **N3** — `commands/system.py` menciona "limpeza": precisa de escopo explícito.
+- ✅ **N3** — escopo de `limpar temp` definido em `core/dispatcher.py`: só arquivos
+  diretos de `%TEMP%`, sem recursão/diretórios/symlinks, ignora arquivos em uso.
 - **N4** — `winbot init` para materializar `settings.yaml`, `~/.winbot/workflows/` e instalar licença.
-- **N5** — `smoke_build.ps1` ainda em validação (linkagem C lenta); definir se o Passo 4
-  usa `--onefile` completo ou alvo reduzido.
+- ✅ **N5** — smoke revalidado: `.exe` de 14,5 MB executa e imprime os imports
+  nativos. `--include-package=comtypes` é obrigatório e está no `build.ps1`.
+- **N6** — `do`/`shell` executam por padrão (exceção ao dry-run de `workflow run`);
+  `--dry-run` simula. Decisão do operador, documentada no README. Confirmar se deve
+  voltar ao dry-run por padrão.
 
 ## 7. Riscos / validações
 
 - **Nuitka + pywin32/pywinauto/pyautogui/cryptography**: a linkagem C com 206 arquivos
   estourou 15 min na primeira tentativa. Alvo reduzido + `--nofollow-import-to`
-  aplicados; validação em andamento. Não deixar para o Passo 4 sem prova.
+  aplicados e **revalidados**: `build/smoke/smoke_entry.exe` roda com exit 0.
+  O `build.ps1` do Passo 4 herda os mesmos includes.
 - Console Windows cp1252: glifos Unicode (`✔`/`✘`) causam `UnicodeEncodeError`.
-  **Corrigido**: símbolos ASCII + `stdout.reconfigure(encoding="utf-8")`.
+  **Corrigido**: `stdout.reconfigure(utf-8)` + fallback ASCII `OK`/`X` quando o
+  stream não é UTF-8. `do`/`shell` usam ✔/✘; `workflow run` mantém `OK`/`X`.
 - Testes com `CliRunner` usam StringIO UTF-8: **não** detectam bugs de codepage.
   Validar sempre também no terminal real.
 - `Raves\Raves\` (cópia acidental do repo) causou `import file mismatch` no pytest;
@@ -191,14 +198,50 @@ examples/bloqueado.workflow.yaml` → BLOQUEADO, exit 1.
 `ModuleNotFoundError: No module named 'comtypes.stream'`. Causa: `pywinauto` →
 `comtypes` gera wrappers COM via `importlib` em runtime, invisível à análise
 estática do Nuitka. Correção aplicada e publicada (`a230fb1`):
-`--include-package=comtypes --include-package=pywinauto`. Revalidação em
-background. **O gate cumpriu seu papel**: detectou o problema antes do Passo 4.
+`--include-package=comtypes --include-package=pywinauto`. **Revalidação concluída
+em 14/11**: `winbot native imports OK: TECH_ONE pyautogui pyperclip pywinauto
+win32com 50.0.2`, exit 0. O gate cumpriu seu papel: detectou o problema antes
+do Passo 4. (O wrapper de log com `*>&1` + `ErrorActionPreference=Stop` gerava
+`NativeCommandError` e abortava antes do `$LASTEXITCODE`; corrigido no script.)
 
 **Abertura do sistema:** bateria funcional completa no terminal real +
 janela visível com `winbot rpa spy` aberta (PID 23824, Ctrl+C para fechar).
 WezTerm não instalado → abertura via `Start-Process` com argv puro, sem shell.
 
+## 12. Passo 4 + interface de pedidos (14/11)
+
+**Passo 4 (implementado, build completo pendente):** `scripts/winbot_entry.py`
+(entry point Nuitka), `scripts/build.ps1` (onefile/standalone, validação do `.exe`,
+assinatura opcional, `-Installer`), `installer.iss` (Inno Setup 6, instalação por
+usuário com `PrivilegesRequired=lowest` para manter PATH/HKCU e `settings.yaml`
+no mesmo perfil), `installer/settings.distribution.yaml` (liga `licensing.enabled`
+com `onlyifdoesntexist`), `.github/workflows/ci.yml` e `release.yml`. `installer.iss`
+**compila limpo** (ISCC exit 0, sem warnings) com payload temporário. O que falta:
+rodar `build.ps1 -Installer` até o fim e assinar (D3).
+
+**Interface `do`/`shell` (implementada e validada):** `core/dispatcher.py` é a
+fonte única de execução — `commands/workflow.py` passou a delegar para
+`execute_step`, eliminando a duplicação das travas de segurança. Parser
+determinístico com 8 verbos, encadeamento por ` e ` com lookahead de verbo,
+`digitar ... com enter`, aliases UWP para `fechar calc`, `clean_temp` de escopo
+estreito. `main.py` ganhou `do` (ícones ✔/✘ via Rich) e `shell`
+(`Prompt.ask("winbot >")`).
+
+**Gates:** `pytest -q` → **100 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros · terminal real:
+
+```
+> winbot do "abrir calc e esperar 1 segundos e fechar calc"
+  ✔ abrir calc.exe App iniciado: calc.exe
+  ✔ esperar 1 segundo(s) Aguardou 1.0s
+  ✔ fechar calc.exe 2 instancia(s) encerrada(s)
+3 ação(ões) concluída(s).     EXIT=0
+```
+
+`ps Remove-Item -Recurse ...` → ✘ BLOQUEADO, exit 1 (fail-closed). `shell` com
+pipe `abrir calc` + `sair` → ✔ e encerra. `do --dry-run` não dispara efeitos.
+
 ---
 
-**Próximo:** Passo 4 (Final) — Nuitka `.exe` protegido + instalador Inno Setup,
-assim que a revalidação do smoke confirmar o `.exe` executando.
+**Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
+completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
