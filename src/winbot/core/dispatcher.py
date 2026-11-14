@@ -17,13 +17,15 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from winbot.core import database
 from winbot.core.config import SecuritySettings, WorkflowStep, load_settings
 from winbot.core.diagnostics import capture_error_snapshot
 from winbot.core.learner import BehaviorLearner
 from winbot.core.logger import audit, logger
-from winbot.core.security import SecurityViolationError
+from winbot.core.security import RiskLevel, SecurityViolationError, classify_risk
+from winbot.core.session import session as _session
 from winbot.engine import gui, shell, uia_engine, vision, windows_api
 
 __all__ = [
@@ -199,6 +201,13 @@ def execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool)
                 ok, message = vision.click_text(text)
                 outcome = StepOutcome(ok, message)
 
+        elif action == "tocar_musica":
+            if dry_run:
+                outcome = StepOutcome(True, "simulado")
+            else:
+                ok, message = _tocar_musica(dry_run=dry_run, policy=policy)
+                outcome = StepOutcome(ok, message)
+
         else:
             outcome = StepOutcome(False, f"Acao nao suportada: {action}")
 
@@ -236,7 +245,7 @@ class DispatchResult:
     blocked: bool = False
 
 
-_VERBS = r"abrir|fechar|focar|digitar|atalho|limpar|esperar|ps|clicar"
+_VERBS = r"abrir|fechar|focar|digitar|atalho|limpar|esperar|ps|clicar|tocar"
 
 # Resolucoes conhecidas, consultadas ANTES do indice SQLite.
 APP_ALIASES: dict[str, str] = {
@@ -288,6 +297,30 @@ def ensure_app_index() -> int:
         return 0
 
 
+# Cortesia/preenchimento removidos ANTES do parser, preservando conteúdo entre aspas.
+_FILLER_RE = re.compile(
+    r"\b(por\s+favor|pra\s+mim|pode|consegue|agora|ei\s+rob[oô]|"
+    r"por\s+gentileza|obrigado|obrigada|me\s+ajuda)\b,?",
+    re.IGNORECASE,
+)
+
+
+def _normalize_instruction(text: str) -> str:
+    """Remove cortesia/preenchimento sem alterar argumentos entre aspas."""
+    if not text:
+        return text
+    parts = re.split(r"(\"[^\"]*\"|\'[^\']*\')", text)
+    cleaned: list[str] = []
+    for index, part in enumerate(parts):
+        if index % 2 == 1:
+            cleaned.append(part)
+        else:
+            value = _FILLER_RE.sub(" ", part)
+            value = re.sub(r"\s+", " ", value).strip()
+            cleaned.append(value)
+    return " ".join(part for part in cleaned if part).strip()
+
+
 def _resolve_app_name(raw: str) -> str:
     """APP_ALIASES -> ``database.find_app`` -> raw puro (sem acrescentar .exe)."""
     cleaned = raw.strip().strip("\"'").strip()
@@ -334,6 +367,19 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
             )
         ]
 
+    # Anafóricos: 'fecha ele' / 'fechar isso' / 'fechar janela' -> último app alvo.
+    if text.lower() in {"fecha ele", "fechar isso", "fechar janela", "fechar ela"}:
+        target = _session.last_target_app
+        if not target:
+            raise ValueError("nenhum aplicativo recente para fechar (abra um primeiro)")
+        names = list(_PROCESS_ALIASES.get(target.lower(), (target,)))
+        return [
+            CommandSpec(
+                f"fechar {target}",
+                WorkflowStep(name="fechar", action="kill_process", params={"name": names}),
+            )
+        ]
+
     match = re.fullmatch(r"fechar\s+(.+)", text, _FLAGS)
     if match:
         resolved = _resolve_app_name(match.group(1))
@@ -345,6 +391,14 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
             CommandSpec(
                 f"fechar {proc}",
                 WorkflowStep(name="fechar", action="kill_process", params={"name": names}),
+            )
+        ]
+
+    if re.fullmatch(r"tocar\s+m[uú]sica", text, re.IGNORECASE):
+        return [
+            CommandSpec(
+                "tocar musica",
+                WorkflowStep(name="tocar musica", action="tocar_musica", params={}),
             )
         ]
 
@@ -378,16 +432,26 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
     match = re.fullmatch(r"clicar\s+no\s+bot[aã]o\s+(.+)", text, _FLAGS)
     if match:
         control = match.group(1).strip()
-        return [
+        window = _session.last_window_title or ""
+        specs: list[CommandSpec] = []
+        if window:
+            specs.append(
+                CommandSpec(
+                    f"focar '{window}'",
+                    WorkflowStep(name="focar", action="focus_window", params={"title": window}),
+                )
+            )
+        specs.append(
             CommandSpec(
-                f"clicar '{control}' (janela ativa)",
+                f"clicar '{control}'" + (f" em '{window}'" if window else " (janela ativa)"),
                 WorkflowStep(
                     name="uia_click",
                     action="uia_click",
-                    params={"window": "", "control": control},
+                    params={"window": window, "control": control},
                 ),
             )
-        ]
+        )
+        return specs
 
     match = re.fullmatch(r"clicar\s+no\s+texto\s+(.+)", text, _FLAGS)
     if match:
@@ -408,12 +472,25 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
         if not payload:
             raise ValueError("digitar exige um texto")
         # O texto NAO entra no rotulo nem em result_message: pode ser uma senha.
-        specs = [
+        specs: list[CommandSpec] = []
+        # Contexto de sessão: se houver janela alvo recente, foca antes de digitar.
+        if _session.last_window_title:
+            specs.append(
+                CommandSpec(
+                    f"focar '{_session.last_window_title}'",
+                    WorkflowStep(
+                        name="focar",
+                        action="focus_window",
+                        params={"title": _session.last_window_title},
+                    ),
+                )
+            )
+        specs.append(
             CommandSpec(
                 f"digitar texto ({len(payload)} caractere(s))",
                 WorkflowStep(name="digitar", action="gui_type", params={"text": payload}),
             )
-        ]
+        )
         if enter:
             specs.append(
                 CommandSpec(
@@ -479,15 +556,61 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
     raise ValueError(f"Comando nao reconhecido: '{text}'")
 
 
+# Mapeamento best-effort de executável -> título de janela (pt-BR).
+_APP_WINDOW_TITLES: dict[str, str] = {
+    "notepad.exe": "Bloco de Notas",
+    "calc.exe": "Calculadora",
+    "chrome.exe": "Chrome",
+    "msedge.exe": "Edge",
+    "firefox.exe": "Firefox",
+    "code.exe": "Visual Studio Code",
+    "explorer.exe": "Explorador de Arquivos",
+}
+
+
 def parse_instruction(instruction: str) -> list[CommandSpec]:
-    """Converte um pedido (possivelmente encadeado com ' e ') em passos."""
+    """Converte um pedido (possivelmente encadeado com ' e ') em passos.
+
+    Resolve anáforas ('fecha ele', 'fechar isso') usando um contexto local que
+    acompanha os passos já gerados nesta mesma instrução — assim
+    'abrir notepad e digitar teste e fechar ele' funciona numa única chamada.
+    """
     if not instruction or not instruction.strip():
         raise ValueError("pedido vazio")
     parts = [part.strip() for part in _CHAIN_RE.split(instruction.strip())]
     specs: list[CommandSpec] = []
+    # Contexto local que acompanha a cadeia (independente do singleton global).
+    local_target: str | None = _session.last_target_app
+    local_window: str | None = _session.last_window_title
     for part in parts:
-        if part:
-            specs.extend(_parse_segment(part))
+        if not part:
+            continue
+        # Override temporário do singleton para resolver anáforas neste segmento.
+        saved_target = _session.last_target_app
+        saved_window = _session.last_window_title
+        _session.last_target_app = local_target
+        _session.last_window_title = local_window
+        try:
+            seg_specs = _parse_segment(part)
+        finally:
+            _session.last_target_app = saved_target
+            _session.last_window_title = saved_window
+        specs.extend(seg_specs)
+        # Atualiza o contexto local com base nos passos gerados.
+        for spec in seg_specs:
+            if spec.step.action == "launch_app":
+                target = str(spec.step.params.get("target", ""))
+                local_target = target
+                local_window = _APP_WINDOW_TITLES.get(
+                    target.lower(), Path(target).stem if target else local_window
+                )
+            elif spec.step.action == "focus_window":
+                local_window = str(spec.step.params.get("title", "")) or local_window
+    # Best-effort: reflete o último alvo no singleton para chamadas futuras.
+    if local_target:
+        _session.last_target_app = local_target
+    if local_window:
+        _session.last_window_title = local_window
     return specs
 
 
@@ -548,30 +671,165 @@ def _policy_for(specs: list[CommandSpec], policy: SecuritySettings) -> SecurityS
 
 
 def _run_specs(
-    specs: list[CommandSpec], *, apply: bool, policy: SecuritySettings
+    specs: list[CommandSpec],
+    *,
+    apply: bool,
+    policy: SecuritySettings,
+    confirm_fn: Any = None,
+    auto_yes: bool = False,
 ) -> list[DispatchResult]:
     active = _policy_for(specs, policy)
     dry_run = not apply
     results: list[DispatchResult] = []
     for spec in specs:
+        risk = classify_risk(spec.step.action, spec.step.params)
+        if (not dry_run) and risk in (RiskLevel.YELLOW, RiskLevel.RED) and not auto_yes:
+            if confirm_fn is not None:
+                prompt = f"Confirmar: {spec.label} ({risk.value})?"
+                try:
+                    approved = bool(confirm_fn(prompt))
+                except Exception:
+                    approved = False
+                if not approved:
+                    results.append(
+                        DispatchResult(spec.label, False, "cancelado pelo usuário", blocked=True)
+                    )
+                    break
+            elif risk == RiskLevel.RED:
+                results.append(
+                    DispatchResult(
+                        spec.label,
+                        False,
+                        "ação RED requer confirmação (--yes ou shell interativo)",
+                        blocked=True,
+                    )
+                )
+                break
         outcome = execute_step(spec.step, policy=active, dry_run=dry_run)
         results.append(DispatchResult(spec.label, outcome.ok, outcome.message, outcome.blocked))
-        if outcome.blocked or not outcome.ok:
+        # Atualiza contexto de sessão em ações bem-sucedidas (anáforas).
+        if outcome.ok and not outcome.blocked:
+            if spec.step.action == "launch_app":
+                _session.update_target(str(spec.step.params.get("target")))
+            elif spec.step.action == "focus_window":
+                _session.update_window(str(spec.step.params.get("title")))
+            elif spec.step.action in {"uia_click", "ocr_click"}:
+                window = spec.step.params.get("window")
+                if window:
+                    _session.update_window(str(window))
+            elif spec.step.action == "gui_type":
+                _session.set_entity("last_text", str(spec.step.params.get("text", ""))[:80])
+        # Foco que falha não aborta a cadeia (ex.: anáfora 'digitar X' após 'abrir app').
+        if outcome.blocked or (not outcome.ok and spec.step.action != "focus_window"):
             break
     return results
 
 
 def _execute_instruction(
-    raw: str, *, apply: bool, policy: SecuritySettings
+    raw: str,
+    *,
+    apply: bool,
+    policy: SecuritySettings,
+    confirm_fn: Any = None,
+    auto_yes: bool = False,
 ) -> list[DispatchResult]:
     try:
         specs = parse_instruction(raw)
     except ValueError as exc:
         return [DispatchResult(raw, False, str(exc))]
-    return _run_specs(specs, apply=apply, policy=policy)
+    return _run_specs(specs, apply=apply, policy=policy, confirm_fn=confirm_fn, auto_yes=auto_yes)
 
 
-def _handle_memory(raw: str, *, apply: bool, policy: SecuritySettings) -> list[DispatchResult]:
+def _tocar_musica(*, dry_run: bool, policy: SecuritySettings) -> tuple[bool, str]:
+    """Abre o player/navegador preferido e, se houver estilo favorito, busca no YouTube."""
+    import shutil
+    from pathlib import Path
+
+    profile = database.get_interest_profile()
+    music = [item for item in profile if item["category"] == "musica"]
+    favorite = music[0]["keyword"] if music else None
+
+    player: str | None = None
+    for candidate in ("spotify", "vlc", "wmplayer", "groove music", "chrome", "edge", "firefox"):
+        found = database.find_app(candidate)
+        if found:
+            player = found
+            break
+    if player is None:
+        player = shutil.which("explorer.exe")
+
+    if not player:
+        return False, "Nenhum player indexado. Rode 'winbot apps sync'."
+
+    args: list[str] | None = None
+    if favorite and any(token in player.lower() for token in ("chrome", "edge", "firefox")):
+        args = [f"https://www.youtube.com/results?search_query={favorite}+music"]
+
+    active = policy
+    if isinstance(policy, SecuritySettings):
+        active = policy.model_copy(
+            update={"allowed_apps": sorted({*policy.allowed_apps, Path(player).name.lower()})}
+        )
+
+    ok = windows_api.launch_app(player, args, dry_run=dry_run, policy=active)
+    if not ok:
+        return False, "Falha ao abrir o player"
+    if favorite:
+        return True, f"Tocando {favorite} em {Path(player).name}"
+    return True, f"Player aberto: {Path(player).name}"
+
+
+def _handle_preparar_ambiente(policy: SecuritySettings | None = None) -> list[DispatchResult]:
+    """Executa a rotina de maior confiança para o hour_bucket atual."""
+    from datetime import datetime
+
+    current_bucket = database.hour_bucket_for(datetime.now().astimezone().hour)
+    routines = database.get_routines()
+    candidates = [r for r in routines if r["trigger_context"].endswith(f"bucket={current_bucket}")]
+    if not candidates:
+        candidates = routines
+    if not candidates:
+        return [
+            DispatchResult(
+                "preparar ambiente",
+                True,
+                "Nenhuma rotina aprendida ainda. Use o WinBot por alguns dias.",
+            )
+        ]
+    best = max(candidates, key=lambda item: item["confidence"])
+    launched: list[str] = []
+    for action in best["suggested_actions"]:
+        name = action.strip().lower()
+        if name.endswith(".exe") or "." not in name:
+            target = name if name.endswith(".exe") else f"{name}.exe"
+            try:
+                active = policy if policy is not None else load_settings().security
+                if isinstance(active, SecuritySettings):
+                    active = active.model_copy(
+                        update={"allowed_apps": sorted({*active.allowed_apps, target.lower()})}
+                    )
+                windows_api.launch_app(target, dry_run=False, policy=active)
+                launched.append(target)
+            except Exception:
+                continue
+    detail = ", ".join(launched) if launched else "nenhum app lançado"
+    return [
+        DispatchResult(
+            "preparar ambiente",
+            True,
+            f"Rotina '{best['trigger_context']}' ({best['confidence']:.0%}): {detail}",
+        )
+    ]
+
+
+def _handle_memory(
+    raw: str,
+    *,
+    apply: bool,
+    policy: SecuritySettings,
+    confirm_fn: Any = None,
+    auto_yes: bool = False,
+) -> list[DispatchResult]:
     lowered = raw.strip().lower()
 
     if any(lowered.startswith(prefix) for prefix in database.REPEAT_PREFIXES):
@@ -580,7 +838,9 @@ def _handle_memory(raw: str, *, apply: bool, policy: SecuritySettings) -> list[D
             result = [DispatchResult("repetir", False, "Nenhum comando anterior para repetir")]
             _log(raw, result)
             return result
-        replay = _execute_instruction(last, apply=apply, policy=policy)
+        replay = _execute_instruction(
+            last, apply=apply, policy=policy, confirm_fn=confirm_fn, auto_yes=auto_yes
+        )
         # Loga o comando REAL, nao a palavra "repetir": o ultimo sucesso continua
         # sendo o mesmo e nao ha loop infinito.
         _log(last, replay)
@@ -662,6 +922,8 @@ def execute_natural_command(
     *,
     apply: bool = True,
     policy: SecuritySettings | None = None,
+    confirm_fn: Any = None,
+    auto_yes: bool = False,
 ) -> list[DispatchResult]:
     """Interpreta e executa o pedido. Fail-closed: para no primeiro erro/bloqueio.
 
@@ -670,7 +932,7 @@ def execute_natural_command(
     Comandos de memoria (``repetir``, ``historico``) valem sozinhos, nao em cadeia.
     """
     ensure_app_index()
-    raw = instruction.strip()
+    raw = _normalize_instruction(instruction.strip())
     active = policy if policy is not None else load_settings().security
 
     # Insight primeiro: esses prefixos tambem estao em MEMORY_PREFIXES (anti-loop),
@@ -683,12 +945,25 @@ def execute_natural_command(
         _log(raw, result)
         return result
 
+    if lowered in {"tocar musica", "bota uma musica", "colocar minha musica", "tocar música"}:
+        ok, message = _tocar_musica(dry_run=not apply, policy=active)
+        result = [DispatchResult("tocar musica", ok, message)]
+        _log(raw, result)
+        return result
+
+    if lowered in {"preparar meu ambiente", "modo trabalho", "preparar ambiente"}:
+        result = _handle_preparar_ambiente(policy=active)
+        _log(raw, result)
+        return result
+
     if database.is_insight_command(raw):
         return _handle_insights(raw)
     if any(raw.lower().startswith(p) for p in database.VOICE_TRAIN_PREFIXES):
         return _handle_voice_training(raw)
     if database.is_memory_command(raw):
-        return _handle_memory(raw, apply=apply, policy=active)
+        return _handle_memory(
+            raw, apply=apply, policy=active, confirm_fn=confirm_fn, auto_yes=auto_yes
+        )
 
     # 1) Parser determinístico (1 ms).
     try:
@@ -697,7 +972,9 @@ def execute_natural_command(
         specs = None
 
     if specs is not None:
-        results = _run_specs(specs, apply=apply, policy=active)
+        results = _run_specs(
+            specs, apply=apply, policy=active, confirm_fn=confirm_fn, auto_yes=auto_yes
+        )
         _log(raw, results)
         return results
 
@@ -710,7 +987,13 @@ def execute_natural_command(
             reply = brain.ask(raw)
             action = reply.get("action")
             if action:
-                results = _execute_instruction(str(action), apply=apply, policy=active)
+                results = _execute_instruction(
+                    str(action),
+                    apply=apply,
+                    policy=active,
+                    confirm_fn=confirm_fn,
+                    auto_yes=auto_yes,
+                )
                 _log(raw, results)
                 return results
             text = str(reply.get("text", "")).strip()

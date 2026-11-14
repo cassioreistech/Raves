@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import PureWindowsPath
+from typing import Any
 
 from winbot.core.config import SecuritySettings
 from winbot.core.logger import audit, logger
@@ -106,3 +108,84 @@ def enforce(
     if not dry_run and not policy.allow_shell:
         raise SecurityViolationError("security.allow_shell=false: apenas dry-run é permitido")
     return decision
+
+
+# ---------------------------------------------------------------------------
+# Classificação de risco em 3 níveis (Etapa 6)
+# ---------------------------------------------------------------------------
+
+
+class RiskLevel(StrEnum):
+    GREEN = "green"
+    YELLOW = "yellow"
+    RED = "red"
+
+
+_GREEN_ACTIONS = frozenset(
+    {
+        "launch_app",
+        "focus_window",
+        "wait",
+        "wait_window",
+        "tocar_musica",
+        "gui_type",
+    }
+)
+_RED_ACTIONS = frozenset({"clean_temp", "powershell"})
+# Ações que escrevem/clicam via UIA/OCR são amarelas (efeito colateral visível).
+_YELLOW_ACTIONS = frozenset(
+    {
+        "kill_process",
+        "gui_click",
+        "gui_click_image",
+        "gui_hotkey",
+        "uia_click",
+        "uia_fill",
+        "ocr_click",
+        "clean_temp",  # redundante, mas RED prevalece abaixo
+    }
+)
+
+
+def classify_risk(action: str, params: dict[str, Any] | None = None) -> RiskLevel:
+    """Classifica uma ação em GREEN/YELLOW/RED.
+
+    - GREEN: leitura/abertura/foco/espera/música (execução imediata).
+    - YELLOW: fechar, RPA/UIA/OCR (confirmação rápida se interativo).
+    - RED: limpar temp, ps, kill em massa (confirmação explícita).
+    """
+    params = params or {}
+    action = (action or "").strip().lower()
+
+    if action in _RED_ACTIONS:
+        return RiskLevel.RED
+    if action == "kill_process":
+        name = params.get("name")
+        if isinstance(name, list) and len(name) > 3:
+            return RiskLevel.RED
+        if isinstance(name, str) and name.strip().lower() in {"*", "all", "todos"}:
+            return RiskLevel.RED
+        return RiskLevel.YELLOW
+    if action in _YELLOW_ACTIONS:
+        return RiskLevel.YELLOW
+    if action in _GREEN_ACTIONS:
+        return RiskLevel.GREEN
+    # Ações desconhecidas: amarelo por segurança (não verde por padrão).
+    return RiskLevel.YELLOW
+
+
+def classify_workflow(steps: list[Any]) -> RiskLevel:
+    """Risco de um workflow = nível mais alto entre suas etapas."""
+    level = RiskLevel.GREEN
+    order = {RiskLevel.GREEN: 0, RiskLevel.YELLOW: 1, RiskLevel.RED: 2}
+    for step in steps:
+        action = getattr(step, "action", None)
+        if action is None and isinstance(step, dict):
+            action = step.get("action")
+        params = getattr(step, "params", None)
+        if params is None and isinstance(step, dict):
+            params = step.get("params", {})
+        risk = classify_risk(str(action or ""), params or {})
+        if order[risk] > order[level]:
+            level = risk
+    return level

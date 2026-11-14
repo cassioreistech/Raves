@@ -162,10 +162,12 @@ Comandos naturais: `quando eu disser X entenda Y`, `aprender palavra X`,
 a correção é instantânea na próxima vez. `redact_command` mascara payloads de
 `digitar` na exibição.
 
-> **Nota honesta:** `voice listen` roda em **modo texto** (sem ASR/TTS real).
-> Whisper e pyttsx3 estão instalados e a calibração funciona, mas a captura de
-> áudio ao vivo via `sounddevice` depende de um microfone padrão configurado.
-> ASR/TTS real fica para uma etapa futura — nada aqui usa nuvem/API.
+> **Status atual:** `voice listen` **usa ASR/TTS reais** quando o modelo Whisper
+> `tiny` está no cache local (`~/.cache/huggingface`) e há microfone padrão:
+> captura, transcreve, executa e fala a resposta (com barge-in). Caso contrário,
+> cai automaticamente para modo texto, sem erro. O modelo `tiny` (~75 MB) é
+> baixado automaticamente na primeira `voice calibrate`/`voice listen`. Nada usa
+> nuvem/API.
 
 ## Sprint A · Visão/OCR Nativo + Gravador Inteligente
 
@@ -215,6 +217,39 @@ chars).
 Roteador em cascata no dispatcher: parser determinístico (1 ms) → memória/hábitos
 → LocalBrain (se `ACTION: <comando>` executa; senão resposta conversacional) →
 fallback amigável offline com dicas.
+
+## Blindagem · Etapa 6 (Contexto de Sessão, Normalizador, Risco 3 Níveis)
+
+Contexto de sessão em memória (`core/session.py`): `last_target_app`,
+`last_window_title`, `last_entities`. Referências anafóricas:
+
+```powershell
+.\.venv\Scripts\winbot.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
+```
+
+`abrir notepad` seta o alvo; `digitar` foca a janela automaticamente; `fechar isso`
+resolve para `notepad.exe`. `fechar ele` / `fechar janela` também funcionam.
+
+Normalizador de linguagem coloquial (antes do parser, preserva aspas):
+`por favor abrir calc agora` → `abrir calc`.
+
+Comandos de perfil 100% offline:
+- `tocar musica` / `bota uma musica` / `colocar minha musica`: consulta
+  `user_interests` (categoria `musica`); se aprendeu um estilo (ex.: `lofi`),
+  abre o player/navegador preferido (com busca no YouTube para navegadores);
+  senão, abre o player padrão indexado.
+- `preparar meu ambiente` / `modo trabalho`: executa a rotina de maior
+  confiança para o `hour_bucket` atual.
+
+Classificação de risco em 3 níveis (`core/security.py`):
+- **GREEN** (imediato): abrir, focar, ler tela, status, histórico, insights,
+  esperar, tocar música, digitar.
+- **YELLOW** (confirmação rápida se interativo): fechar, RPA/UIA/OCR, cliques.
+- **RED** (confirmação explícita): limpar temp, `ps`, kill em massa.
+
+`winbot do` ganhou `--yes`/`-y` para automação sem prompt. No `shell`, confirmação
+`[s/N]` via Rich; no `voice listen`, o robô pergunta em voz e escuta
+"sim"/"pode fazer"/"confirmo" vs "não"/"cancela".
 
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 

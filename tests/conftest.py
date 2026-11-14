@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 
-from winbot.core import dispatcher
+from winbot.core import dispatcher, session
 
 
 @pytest.fixture
@@ -18,4 +18,7 @@ def _isolated_winbot_db(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("WINBOT_OBSERVER_DISABLED", "1")
     # Cerebro hibrido: nao tentar Ollama durante os testes.
     monkeypatch.setenv("WINBOT_DISABLE_LOCAL_BRAIN", "1")
+    # Voz: nao abrir microfone/Whisper durante os testes.
+    monkeypatch.setenv("WINBOT_DISABLE_ASR", "1")
     monkeypatch.setattr(dispatcher, "_index_checked", False)
+    session.get_session().reset()

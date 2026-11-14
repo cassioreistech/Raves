@@ -138,7 +138,31 @@ def focus_window(title_substring: str, *, dry_run: bool = True) -> bool:
     win32gui.EnumWindows(enum_handler, None)
     if target_hwnd is None:
         return False
-    win32gui.ShowWindow(target_hwnd, win32con.SW_RESTORE)
-    win32gui.SetForegroundWindow(target_hwnd)
+    try:
+        # Workaround para o bloqueio de foreground do Windows: anexa a thread
+        # de entrada do processo em foreground à thread alvo, foca e desanexa.
+        # ASFW_ANY sozinho não basta quando o WinBot roda destacado (tray).
+        try:
+            import ctypes
+
+            foreground_hwnd = win32gui.GetForegroundWindow()
+            foreground_thread, _ = win32process.GetWindowThreadProcessId(foreground_hwnd)
+            target_thread, _ = win32process.GetWindowThreadProcessId(target_hwnd)
+            attached = False
+            if foreground_thread and target_thread and foreground_thread != target_thread:
+                attached = bool(
+                    ctypes.windll.user32.AttachThreadInput(foreground_thread, target_thread, True)
+                )
+            win32gui.ShowWindow(target_hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(target_hwnd)
+            win32gui.BringWindowToTop(target_hwnd)
+            if attached:
+                ctypes.windll.user32.AttachThreadInput(foreground_thread, target_thread, False)
+        except Exception as exc:
+            logger.debug(f"focus_window: não foi possível focar '{title_substring}': {exc}")
+            return False
+    except Exception as exc:
+        logger.debug(f"focus_window: não foi possível focar '{title_substring}': {exc}")
+        return False
     logger.info(f"Janela focada: '{title_substring}'")
     return True

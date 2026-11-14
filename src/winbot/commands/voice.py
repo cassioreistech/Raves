@@ -35,11 +35,12 @@ def voice_listen(
     interactive_loop(
         prompt="winbot voz >",
         header=(
-            "[bold cyan]WinBot Voice · modo texto[/bold cyan] [dim]- sem ASR/TTS, "
-            "sem nuvem. 'sair' encerra.[/dim]"
+            "[bold cyan]WinBot Voice[/bold cyan] [dim]- ASR/TTS quando o modelo "
+            "Whisper estiver disponível; 'sair' encerra.[/dim]"
         ),
         dry_run=dry_run,
         settings=load_settings(),
+        voice_mode=True,
     )
 
 

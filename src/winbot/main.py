@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.prompt import Prompt
 from rich.table import Table
 
 from winbot import __version__
@@ -102,6 +103,10 @@ def do_cmd(
         bool,
         typer.Option("--dry-run", help="Simula o pedido sem executar nenhuma ação."),
     ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Confirma automaticamente ações YELLOW/RED (automação)."),
+    ] = False,
 ) -> None:
     """Executa um pedido em linguagem natural imediatamente, sem arquivo YAML."""
     settings = load_settings()
@@ -109,7 +114,17 @@ def do_cmd(
     mode = "SIMULAÇÃO" if dry_run else "EXECUÇÃO"
     console.print(f"[dim]Pedido ({mode}):[/dim] {escape(redact_command(pedido))}")
 
-    results = execute_natural_command(pedido, apply=not dry_run, policy=settings.security)
+    def _confirm(prompt: str) -> bool:
+        answer = Prompt.ask(f"{prompt} [s/N]", console=console, default="n")
+        return answer.strip().lower() in {"s", "sim", "y", "yes", "pode", "confirmo", "ok"}
+
+    results = execute_natural_command(
+        pedido,
+        apply=not dry_run,
+        policy=settings.security,
+        confirm_fn=_confirm if (not dry_run and not yes) else None,
+        auto_yes=yes,
+    )
     render_results(results)
     if any(not item.ok or item.blocked for item in results):
         console.print("[bold red]Pedido interrompido (fail-closed).[/bold red]")

@@ -2,8 +2,10 @@
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
-> RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ · System Tray Etapa 4 ✅ ·
-> Sprint A (Visão/OCR + Gravador) ✅ · **Sprint B (Gatilhos + Cérebro Híbrido) ✅ validado**.
+> RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ (ASR/TTS agora ligados em `voice listen`
+> quando o modelo está em cache) · System Tray Etapa 4 ✅ ·
+> Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
+> **Blindagem Etapa 6 ✅** (contexto de sessão, normalizador, risco 3 níveis).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -383,6 +385,33 @@ automática de RAM.
 
 ---
 
+## 19. Blindagem · Etapa 6 (14/11) ✅
+
+**Entregue:** `core/session.py` (SessionContext singleton em memória: last_target_app,
+last_window_title, last_entities; update_target/update_window/set_entity/get_entity/reset);
+`core/security.py` ganhou RiskLevel (StrEnum) + classify_risk + classify_workflow
+(GREEN/YELLOW/RED com regras por ação e bulk para kill_process); `_normalize_instruction`
+no dispatcher (remove cortesia/preenchimento preservando aspas); comandos de perfil
+`tocar musica` (consulta user_interests 'musica' e abre player/navegador preferido
+com busca no YouTube) e `preparar meu ambiente`/`modo trabalho` (rotina de maior
+confiança para o hour_bucket atual); anáforas `fecha ele`/`fechar isso`/`fechar janela`
+resolvidas via contexto local que acompanha a cadeia (parse_instruction rastreia
+local_target/local_window); `digitar`/`clicar no botao` focam a janela recente
+automaticamente (foco não-fatal); `winbot do` ganhou `--yes`/`-y`; `shell` e
+`voice listen` pedem confirmação [s/N] (voice: pergunta em voz e escuta
+sim/pode/confirmo vs não/cancela).
+
+**Gates:** `pytest -q` → **208 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `do "por favor abrir calc agora"` → `abrir calc`
+(normalizer); `do "abrir notepad e digitar ola mundo e fechar isso" --yes` → 4 ações
+OK (foco + digitação + fechamento); `do "limpar temp"` → prompt [s/N], default "n"
+aborta; `--yes` executa; `do "tocar musica"` → abre player indexado.
+
+**Testes:** `tests/test_session.py` (2), novos casos em `test_dispatcher.py`
+(normalizer, anáfora, tocar musica com/sem perfil, classify_risk, confirmação
+YELLOW/RED, bypass --yes, do --yes).
+
+---
+
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 6 de Blindagem (escopo a definir).

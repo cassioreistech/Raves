@@ -58,5 +58,5 @@ def test_insights_nao_viram_alvo_de_repetir() -> None:
 def test_voice_listen_modo_texto() -> None:
     result = CliRunner().invoke(app, ["voice", "listen"], input="sair\n")
     assert result.exit_code == 0
-    assert "modo texto" in result.stdout
+    assert "Modo texto" in result.stdout
     assert "Até logo" in result.stdout

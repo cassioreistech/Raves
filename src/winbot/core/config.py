@@ -136,6 +136,7 @@ WorkflowAction = Literal[
     "uia_fill",
     "wait_window",
     "ocr_click",
+    "tocar_musica",
 ]
 MAX_WAIT_SECONDS = 60.0
 

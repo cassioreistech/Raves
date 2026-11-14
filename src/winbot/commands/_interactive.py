@@ -7,6 +7,7 @@ do observador de contexto, saudação proativa e o loop de pedidos.
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -76,16 +77,85 @@ def show_proactive_greeting() -> str | None:
     return greeting
 
 
-def interactive_loop(*, prompt: str, header: str, dry_run: bool, settings: Settings) -> None:
-    """Loop de pedidos com observer + saudação na abertura e parada limpa."""
+def interactive_loop(
+    *,
+    prompt: str,
+    header: str,
+    dry_run: bool,
+    settings: Settings,
+    voice_mode: bool = False,
+    confirm_fn: Any = None,
+) -> None:
+    """Loop de pedidos com observer + saudação na abertura e parada limpa.
+
+    Em ``voice_mode=True`` tenta usar ``VoiceEngine`` (ASR/TTS). Se o modelo
+    Whisper não estiver disponível localmente ou o microfone falhar, cai para
+    o modo texto sem derrubar a sessão.
+    """
     enforce_license(settings)
     observer = start_observer()
+    engine = None
+    if voice_mode and not os.environ.get("WINBOT_DISABLE_ASR"):
+        try:
+            from winbot.engine.voice import VoiceEngine
+
+            engine = VoiceEngine()
+            engine.start()
+            if engine._get_model() is None:
+                console.print(
+                    "[yellow]Modelo Whisper não encontrado localmente. Usando modo texto.[/yellow]"
+                )
+                engine.stop()
+                engine = None
+                console.print("[dim]Modo texto (sem ASR/TTS).[/dim]")
+            else:
+                console.print("[dim]Modo voz ativo. Fale ou digite 'sair'.[/dim]")
+        except Exception as exc:
+            console.print(f"[yellow]Voz indisponível ({exc}); usando modo texto.[/yellow]")
+            engine = None
+    if voice_mode and engine is None:
+        console.print("[dim]Modo texto (sem ASR/TTS).[/dim]")
+
+    _confirm = confirm_fn
+    if _confirm is None:
+
+        def _confirm(prompt: str) -> bool:
+            answer = Prompt.ask(f"{prompt} [s/N]", console=console, default="n")
+            return answer.strip().lower() in {"s", "sim", "y", "yes", "pode", "confirmo", "ok"}
+
+    # Voz: confirmação por voz.
+    if voice_mode and engine is not None:
+
+        def _voice_confirm(prompt: str) -> bool:
+            engine.speak(prompt + "? Confirma?")
+            reply = engine.listen_once()
+            if reply is None:
+                return False
+            lowered = reply.lower()
+            positive = any(
+                tok in lowered for tok in ("sim", "pode", "confirmo", "yes", "ok", "claro")
+            )
+            negative = any(tok in lowered for tok in ("não", "nao", "cancela", "negativo"))
+            return positive and not negative
+
+        _confirm = _voice_confirm
+
     try:
         console.print(header)
-        show_proactive_greeting()
+        greeting = show_proactive_greeting()
+        if engine is not None and greeting:
+            engine.speak(greeting)
+
         while True:
             try:
-                pedido = Prompt.ask(prompt, console=console).strip()
+                if engine is not None:
+                    console.print("[dim]Ouvindo...[/dim]")
+                    pedido = engine.listen_once()
+                    if pedido is None:
+                        continue
+                    pedido = pedido.strip()
+                else:
+                    pedido = Prompt.ask(prompt, console=console).strip()
             except (EOFError, KeyboardInterrupt):
                 console.print()
                 break
@@ -93,9 +163,21 @@ def interactive_loop(*, prompt: str, header: str, dry_run: bool, settings: Setti
                 continue
             if pedido.casefold() in {"sair", "exit", "quit"}:
                 break
-            results = execute_natural_command(pedido, apply=not dry_run, policy=settings.security)
+            results = execute_natural_command(
+                pedido,
+                apply=not dry_run,
+                policy=settings.security,
+                confirm_fn=_confirm if not dry_run else None,
+            )
             render_results(results)
+            if engine is not None:
+                if any(not item.ok or item.blocked for item in results):
+                    engine.speak("Pedido interrompido.")
+                else:
+                    engine.speak(f"{len(results)} ação concluída.")
     finally:
+        if engine is not None:
+            engine.stop()
         if observer is not None:
             observer.stop()
     console.print("[dim]Até logo.[/dim]")

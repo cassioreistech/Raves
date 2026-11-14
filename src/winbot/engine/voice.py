@@ -88,7 +88,10 @@ class VoiceEngine:
                 return None
             try:
                 self._model = WhisperModel(
-                    self.model_size, device=self.device, compute_type=self.compute_type
+                    self.model_size,
+                    device=self.device,
+                    compute_type=self.compute_type,
+                    local_files_only=True,
                 )
                 return self._model
             except Exception as exc:

@@ -117,7 +117,9 @@ def test_clean_temp_apply_remove_so_arquivos_topo(tmp_path: Path, mocker) -> Non
     (tmp_path / "pasta").mkdir()
     (tmp_path / "pasta" / "b.txt").write_text("y", encoding="utf-8")
 
-    results = execute_natural_command("limpar temp", apply=True, policy=SecuritySettings())
+    results = execute_natural_command(
+        "limpar temp", apply=True, auto_yes=True, policy=SecuritySettings()
+    )
     assert results[0].ok is True
     assert not (tmp_path / "a.txt").exists()
     assert (tmp_path / "pasta" / "b.txt").exists()
@@ -157,6 +159,107 @@ def test_shell_sai_com_exit() -> None:
     result = CliRunner().invoke(app, ["shell"], input="exit\n")
     assert result.exit_code == 0
     assert "Até logo" in result.stdout
+
+
+# --- Etapa 6 (Contexto de Sessão, Normalizador, Risco 3 Níveis) --------------
+
+
+def test_normalizar_remove_cortesia_preservando_aspas() -> None:
+    from winbot.core.dispatcher import _normalize_instruction
+
+    assert _normalize_instruction("por favor abrir calc agora") == "abrir calc"
+    assert _normalize_instruction('digitar "ola mundo" pra mim') == 'digitar "ola mundo"'
+    assert _normalize_instruction("ei robô, pode focar Calculadora") == "focar Calculadora"
+
+
+def test_contexto_anavorico_abrir_digitar_fechar_ele(mocker) -> None:
+    from winbot.core.session import get_session
+
+    get_session().reset()
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("winbot.engine.windows_api.kill_process_by_name", return_value=1)
+    mocker.patch("winbot.engine.windows_api.focus_window", return_value=True)
+
+    results = execute_natural_command(
+        "abrir notepad e digitar ola mundo e fechar isso",
+        apply=False,
+        policy=SecuritySettings(),
+    )
+    assert [r.ok for r in results] == [True, True, True, True]
+    # O 'digitar' ganhou um foco automático da janela recente.
+    assert any("focar" in r.label for r in results)
+    assert any(r.label.startswith("fechar notepad.exe") for r in results)
+
+
+def test_tocar_musica_com_perfil_mockado(mocker) -> None:
+    database.upsert_interest("musica", "lofi")
+    database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    results = execute_natural_command("tocar musica", apply=True, policy=SecuritySettings())
+    assert results[0].ok is True
+    assert "lofi" in results[0].message
+
+
+def test_tocar_musica_sem_perfil_abre_player_padrao(mocker) -> None:
+    database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
+    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    results = execute_natural_command("tocar musica", apply=True, policy=SecuritySettings())
+    assert results[0].ok is True
+
+
+def test_risco_green_nao_pede_confirmacao() -> None:
+    from winbot.core.security import RiskLevel, classify_risk
+
+    assert classify_risk("launch_app", {"target": "calc.exe"}) == RiskLevel.GREEN
+    assert classify_risk("tocar_musica", {}) == RiskLevel.GREEN
+    assert classify_risk("wait", {"seconds": 1}) == RiskLevel.GREEN
+
+
+def test_risco_yellow_e_red() -> None:
+    from winbot.core.security import RiskLevel, classify_risk
+
+    assert classify_risk("kill_process", {"name": "calc.exe"}) == RiskLevel.YELLOW
+    assert classify_risk("kill_process", {"name": ["a", "b", "c", "d"]}) == RiskLevel.RED
+    assert classify_risk("kill_process", {"name": "*"}) == RiskLevel.RED
+    assert classify_risk("clean_temp", {}) == RiskLevel.RED
+    assert classify_risk("powershell", {"command": "Get-Process"}) == RiskLevel.RED
+    assert classify_risk("ocr_click", {"text": "OK"}) == RiskLevel.YELLOW
+    assert classify_risk("uia_click", {"window": "w", "control": "c"}) == RiskLevel.YELLOW
+
+
+def test_confirmacao_yellow_com_callback() -> None:
+    launch = __import__("unittest.mock", fromlist=["patch"]).patch(
+        "winbot.engine.windows_api.launch_app", return_value=True
+    )
+    kill = __import__("unittest.mock", fromlist=["patch"]).patch(
+        "winbot.engine.windows_api.kill_process_by_name", return_value=1
+    )
+    with launch, kill:
+        # fechar é YELLOW: com confirm_fn retornando False, aborta.
+        results = execute_natural_command(
+            "fechar calc",
+            apply=True,
+            policy=SecuritySettings(),
+            confirm_fn=lambda p: False,
+        )
+    assert results[0].blocked is True
+    assert "cancelado" in results[0].message
+
+
+def test_confirmacao_red_com_yes_bypass(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    monkeypatch.setattr("winbot.core.dispatcher.tempfile.gettempdir", lambda: str(tmp_path))
+    results = execute_natural_command(
+        "limpar temp", apply=True, auto_yes=True, policy=SecuritySettings()
+    )
+    assert results[0].ok is True
+    assert not (tmp_path / "a.txt").exists()
+
+
+def test_do_yes_flag_bypass() -> None:
+    result = CliRunner().invoke(app, ["do", "limpar temp", "--yes"])
+    assert result.exit_code == 0
+    assert "✔" in result.stdout
 
 
 # --- Sprint B (Gatilhos + Cerebro Híbrido) ----------------------------------
