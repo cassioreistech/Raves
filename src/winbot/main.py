@@ -13,6 +13,7 @@ from rich.table import Table
 
 from winbot import __version__
 from winbot.commands import (
+    ai_cmd,
     apps,
     flow,
     insights,
@@ -51,6 +52,7 @@ app.add_typer(workflow.app, name="workflow")
 app.add_typer(schedule.app, name="schedule")
 app.add_typer(rpa_tools.app, name="rpa")
 app.add_typer(apps.app, name="apps")
+app.add_typer(ai_cmd.app, name="ai")
 app.add_typer(insights.app, name="insights")
 app.add_typer(voice.app, name="voice")
 app.add_typer(tray.app, name="tray")

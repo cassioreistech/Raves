@@ -96,4 +96,4 @@ def test_keep_alive_dois_minutos_no_payload(monkeypatch) -> None:
     with patch("urllib.request.urlopen", side_effect=fake_urlopen):
         brain.ask("oi")
     payload = json.loads(captured["body"])
-    assert payload["keep_alive"] == "2m"
+    assert payload["keep_alive"] == "90s"

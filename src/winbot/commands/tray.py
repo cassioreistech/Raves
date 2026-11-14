@@ -18,6 +18,7 @@ import typer
 from PIL import Image, ImageDraw, ImageFont
 from rich.console import Console
 
+from winbot.ai.local_brain import shutdown_if_managed
 from winbot.commands.workflow import WORKFLOWS_DIR
 from winbot.core import database
 from winbot.engine.observer import ContextObserver
@@ -139,7 +140,9 @@ def _workflow_items() -> list[Any]:
 
 
 def _quit(icon: Any, item: Any) -> None:
+    _stop_triggers()
     _stop_observer()
+    shutdown_if_managed()
     icon.stop()
 
 
@@ -173,4 +176,5 @@ def _run_tray() -> None:
     finally:
         _stop_triggers()
         _stop_observer()
+        shutdown_if_managed()
         console.print("[dim]WinBot Tray encerrado.[/dim]")

@@ -251,6 +251,26 @@ Classificação de risco em 3 níveis (`core/security.py`):
 `[s/N]` via Rich; no `voice listen`, o robô pergunta em voz e escuta
 "sim"/"pode fazer"/"confirmo" vs "não"/"cancela".
 
+## Cérebro Local · Ollama (setup zero-atrito)
+
+O WinBot gerencia o ciclo de vida do Ollama automaticamente — não precisa ficar
+rodando na inicialização do Windows.
+
+```powershell
+.\.venv\Scripts\winbot.exe ai status
+.\.venv\Scripts\winbot.exe ai setup          # instala Ollama (winget) + baixa qwen2.5:1.5b
+.\.venv\Scripts\winbot.exe ai setup --lite    # qwen2.5:0.5b (397 MB, PCs com 4 GB)
+.\.venv\Scripts\winbot.exe ai unload         # descarrega o modelo da RAM agora
+.\.venv\Scripts\winbot.exe ai shutdown       # encerra o serve se foi o WinBot que subiu
+```
+
+Quando o `LocalBrain` precisa responder e a porta 11434 está fechada, o WinBot
+sobe `ollama serve` em segundo plano (`CREATE_NO_WINDOW`) com
+`OLLAMA_MAX_LOADED_MODELS=1` e `OLLAMA_NUM_PARALLEL=1`, aguarda até 3s e depois
+envia a requisição com `keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140`.
+Após 90s de ociosidade o modelo é descarregado da RAM. Se o Ollama não estiver
+instalado, degrada graciosamente (fallback offline com dicas).
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

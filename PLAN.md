@@ -5,7 +5,8 @@
 > RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ (ASR/TTS agora ligados em `voice listen`
 > quando o modelo está em cache) · System Tray Etapa 4 ✅ ·
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
-> **Blindagem Etapa 6 ✅** (contexto de sessão, normalizador, risco 3 níveis).
+> Blindagem Etapa 6 ✅ · **Setup Ollama Zero-Atrito ✅** (auto-start, keep_alive 90s,
+> env vars de economia, winbot ai status/setup/unload/shutdown).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -411,7 +412,26 @@ aborta; `--yes` executa; `do "tocar musica"` → abre player indexado.
 (normalizer, anáfora, tocar musica com/sem perfil, classify_risk, confirmação
 YELLOW/RED, bypass --yes, do --yes).
 
+## 20. Setup Ollama Zero-Atrito (14/11) ✅
+
+**Entregue:** `ai/local_brain.py` reescrito com ciclo de vida gerenciado:
+`ensure_server_running()` (localiza `ollama.exe` via PATH ou
+`%LOCALAPPDATA%\Programs\Ollama`, sobe `ollama serve` com
+`CREATE_NO_WINDOW` + `OLLAMA_MAX_LOADED_MODELS=1` + `OLLAMA_NUM_PARALLEL=1`,
+aguarda até 3s), `shutdown_if_managed()` (encerra só se o WinBot subiu),
+`keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140`, `temperature: 0.3`.
+`commands/ai_cmd.py`: `ai status`, `ai setup [--lite]` (winget silencioso +
+`ollama pull qwen2.5:1.5b`/`qwen2.5:0.5b` com feedback Rich, persiste modelo em
+`settings.yaml`), `ai unload` (keep_alive=0), `ai shutdown`. atexit registra
+shutdown. Integrado ao `winbot tray` (Sair encerra o serve gerenciado).
+
+**Gates:** `pytest -q` → **208 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `ai status` mostra "Ollama não
+encontrado" (não instalado) + RAM livre 5,07 GB; `ai unload` degrada
+graciosamente; `ai --help` lista status/setup/unload/shutdown.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
+Etapa 7 de Blindagem (escopo a definir).
