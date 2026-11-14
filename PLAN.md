@@ -7,8 +7,8 @@
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
 > Blindagem Etapa 6 ✅ · Setup Ollama Zero-Atrito ✅ ·
 > Interface Visual Etapa 7 ✅ · Integração Viva Etapa 8 ✅ ·
-> Voz Natural (masculina/feminina) ✅ ·
-> **Prosódia PT-BR + TTSEngine ✅** (siglas fonéticas, pausas, WinRT/Piper/pyttsx3).
+> Voz Natural (masculina/feminina) ✅ · Prosódia PT-BR + TTSEngine ✅ ·
+> **Núcleo Orbital (HUD puro, sem input rápido) ✅**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `raves` (ver N1).
 
@@ -537,6 +537,11 @@ WinRT SpeechSynthesis Maria/Daniel → pyttsx3), `NeuralSpeaker` (síntese em me
 · `pyright` → 0 erros. Terminal real: `voice set-voice masculina/feminina`
 persiste; `voice test` fala com a voz correta (WinRT Daniel/Maria); prosódia
 converte "VS Code" → "vê ésse côde", "CPU" → "cê pê ú", etc.
+
+**Adendo (14/11):** HUD Orbital simplificado — removido o campo de texto rápido
+(QLineEdit) do painel (o usuário pediu "só a bolinha girando"). O centro da bola
+agora é prata azulado escuro (#5A6B85). Entrada de texto continua via
+`raves shell` / `raves do`. ESC oculta o HUD imediatamente.
 
 ---
 

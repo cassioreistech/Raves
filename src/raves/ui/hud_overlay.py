@@ -7,12 +7,11 @@ estado (LISTENING/THINKING/SPEAKING/ERROR) e ao nível de áudio.
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
-from PySide6.QtWidgets import QLineEdit, QWidget
+from PySide6.QtWidgets import QWidget
 
 from raves.ui.state_bridge import UiState
 
@@ -62,15 +61,7 @@ class HudOverlay(QWidget):
         self.resize(360, 130)
         self._position_default()
 
-        self.text_input = QLineEdit(self)
-        self.text_input.setPlaceholderText("Digite um pedido e Enter…")
-        self.text_input.setGeometry(108, self.height() - 34, self.width() - 116, 24)
-        self.text_input.setStyleSheet(
-            "QLineEdit { background: rgba(11,19,36,0.85); color: #E0F7FA; "
-            "border: 1px solid #00E5FF; border-radius: 6px; padding: 2px 6px; }"
-        )
-        self.text_input.returnPressed.connect(self._on_text_submitted)
-        self.text_input.hide()
+        # Campo de texto removido: o HUD agora é só o núcleo orbital + painel de legenda.
 
         bridge.state_changed.connect(self._on_state_changed)
         bridge.audio_level_changed.connect(self._on_level)
@@ -104,8 +95,6 @@ class HudOverlay(QWidget):
     def show_animated(self) -> None:
         self.show()
         self.raise_()
-        self.text_input.show()
-        self.text_input.setFocus()
         self._auto_hide_timer.stop()
         if self._state not in (
             UiState.LISTENING.value,
@@ -116,8 +105,6 @@ class HudOverlay(QWidget):
 
     def hide_animated(self) -> None:
         self._auto_hide_timer.stop()
-        self.text_input.hide()
-        self.text_input.clear()
         self.hide()
 
     def _on_auto_hide(self) -> None:
@@ -172,42 +159,6 @@ class HudOverlay(QWidget):
             return
         super().keyPressEvent(event)
 
-    def _on_text_submitted(self) -> None:
-        text = self.text_input.text().strip()
-        if not text:
-            return
-        self.text_input.clear()
-        self._auto_hide_timer.stop()
-        self.bridge.set_state("THINKING", text[:80])
-
-        def worker() -> None:
-            try:
-                from raves.core.config import load_settings
-                from raves.core.dispatcher import execute_natural_command
-
-                settings = load_settings()
-                results = execute_natural_command(text, apply=True, policy=settings.security)
-                summary = " | ".join(item.message for item in results)[:120]
-                ok = all(item.ok and not item.blocked for item in results)
-                self.bridge.set_state("SUCCESS" if ok else "ERROR", summary or text[:80])
-                # Fala a resposta se pyttsx3 estiver disponível (best-effort).
-                try:
-                    import pyttsx3
-
-                    engine = pyttsx3.init()
-                    engine.say(summary if ok else "Pedido interrompido.")
-                    engine.runAndWait()
-                    with contextlib.suppress(Exception):
-                        engine.stop()
-                except Exception:
-                    pass
-            except Exception as exc:
-                self.bridge.set_state("ERROR", str(exc)[:80])
-
-        import threading
-
-        threading.Thread(target=worker, name="hud-text-submit", daemon=True).start()
-
     # ------------------------------------------------------------------
     # Renderização
     # ------------------------------------------------------------------
@@ -258,8 +209,8 @@ class HudOverlay(QWidget):
         painter.setBrush(QBrush(grad))
         painter.drawEllipse(cx - radius, cy - radius, radius * 2, radius * 2)
 
-        # Ponto central.
-        painter.setBrush(QBrush(QColor("#FFFFFF")))
+        # Ponto central: prata azulado escuro.
+        painter.setBrush(QBrush(QColor("#5A6B85")))
         painter.drawEllipse(cx - 3, cy - 3, 6, 6)
 
     def _draw_ring(

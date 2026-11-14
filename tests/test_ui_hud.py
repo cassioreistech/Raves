@@ -32,34 +32,14 @@ def test_hud_overlay_drag_handle() -> None:
     assert hud._drag_pos is None
 
 
-def test_hud_text_input_existe_e_esc_oculta(mocker) -> None:
-    bridge = StateBridge()
-    hud = HudOverlay(bridge)
-    hud.show_animated()
-    assert hud.text_input.isVisible() is True
+def test_hud_esc_oculta() -> None:
     from PySide6.QtCore import QEvent, Qt
     from PySide6.QtGui import QKeyEvent
 
+    bridge = StateBridge()
+    hud = HudOverlay(bridge)
+    hud.show_animated()
+    assert hud.isVisible() is True
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
     hud.keyPressEvent(event)
     assert hud.isVisible() is False
-
-
-def test_hud_text_submit_dispara_worker(mocker) -> None:
-    bridge = StateBridge()
-    hud = HudOverlay(bridge)
-    states: list[str] = []
-    bridge.state_changed.connect(lambda s, c: states.append(s))
-    mocker.patch("raves.core.config.load_settings")
-    mocker.patch(
-        "raves.core.dispatcher.execute_natural_command",
-        return_value=[],
-    )
-    hud.text_input.setText("abrir calc")
-    hud._on_text_submitted()
-    assert hud.text_input.text() == ""
-    # Worker thread runs async; give it a moment.
-    import time
-
-    time.sleep(0.3)
-    assert "THINKING" in states

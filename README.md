@@ -325,8 +325,8 @@ pyttsx3, best-effort).
 
 - HUD Orbital reage em tempo real: anéis pulsando com o volume do microfone
   (LISTENING), acelerando (THINKING), pulsando no ritmo do TTS (SPEAKING).
-- Campo de texto discreto no HUD (Enter executa via dispatcher em worker thread,
-  ESC oculta).
+- Núcleo orbital puro (sem campo de texto): ESC oculta imediatamente. Entrada de
+  texto rápida via `raves shell` ou `raves do`.
 - Autostart via `HKCU\...\Run` (sem admin) — checkbox na aba Voz & Áudio.
 - 4 workflows de fábrica instalados automaticamente se a pasta estiver vazia.
 - Botão "+ Criar Novo Workflow" na aba Workflows (modal com editor YAML).
