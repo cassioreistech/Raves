@@ -1,7 +1,8 @@
 # WinBot Core — Plano de Fundação e Arquitetura Comercial
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
-> não executado ponta a ponta) · `do`/`shell` ✅ · **Blindagem Etapa 1 ✅ validada**.
+> não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
+> **RPA Nativo Etapa 2 ✅ validada**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -273,8 +274,30 @@ journal_mode` = `wal`; `do "abrir chrome" --dry-run` resolve o `.exe` do registr
 isolado em `tmp_path` + `WINBOT_SKIP_APP_INDEX=1`, para nenhum teste tocar no
 banco real nem varrer o Windows de verdade.
 
+## 14. RPA Nativo · Etapa 2 (14/11) ✅
+
+**Entregue:** `engine/uia_engine.py` (`wait_for_window` com tenacity 0.5s,
+`click_control` com `invoke()`+fallback `click_input()`, `fill_field` com
+`set_edit_text()`+fallback clipboard, `list_window_controls`, `foreground_window_title`);
+`core/diagnostics.py` (`capture_error_snapshot` → screenshot + `.txt` em
+`~/.winbot/crash_reports`); ações `uia_click`, `uia_fill`, `wait_window` no
+schema `WorkflowAction` (com validação) e em `_execute_step`; captura automática
+de snapshot em toda falha de etapa; comando `winbot rpa inspect <titulo>` com
+tabela Rich; parser natural `clicar em <ctrl> na janela <janela>`, `clicar no
+botao <ctrl>` (janela ativa) e `esperar janela <titulo>`.
+
+**Gates:** `pytest -q` → **160 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `rpa inspect Calculadora --depth 8` → 53
+controles; `do "clicar em Cinco na janela Calculadora"` → ✔; `do "focar
+Calculadora e clicar no botao Seis"` (janela ativa) → ✔; `do "esperar janela
+Calculadora"` → ✔.
+
+**Testes:** `tests/test_uia_engine.py` (8), `tests/test_diagnostics.py` (2),
+novos casos no dispatcher. `execute_step` agora captura snapshot em exceções e
+em resultados False.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 2 de Blindagem (escopo ainda a definir).
+Etapa 3 de Blindagem (escopo ainda a definir).

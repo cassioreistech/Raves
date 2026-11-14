@@ -132,6 +132,9 @@ WorkflowAction = Literal[
     "gui_type",
     "gui_hotkey",
     "clean_temp",
+    "uia_click",
+    "uia_fill",
+    "wait_window",
 ]
 MAX_WAIT_SECONDS = 60.0
 
@@ -169,6 +172,21 @@ class WorkflowStep(BaseModel):
             keys = self.params.get("keys")
             if not isinstance(keys, list) or not keys:
                 raise ValueError("ação 'gui_hotkey' exige params.keys (lista não vazia)")
+        if self.action in {"uia_click", "uia_fill"} and not self.params.get("control"):
+            raise ValueError(f"ação '{self.action}' exige params.control")
+        if self.action == "uia_fill":
+            if not self.params.get("window"):
+                raise ValueError("ação 'uia_fill' exige params.window")
+            if not self.params.get("text"):
+                raise ValueError("ação 'uia_fill' exige params.text não vazio")
+        if self.action == "uia_click" and "window" not in self.params:
+            self.params["window"] = ""
+        if self.action == "wait_window":
+            if not self.params.get("title"):
+                raise ValueError("ação 'wait_window' exige params.title")
+            timeout = self.params.get("timeout", 15)
+            if not isinstance(timeout, (int, float)) or not 1 <= timeout <= 120:
+                raise ValueError("params.timeout deve estar entre 1 e 120")
         return self
 
 

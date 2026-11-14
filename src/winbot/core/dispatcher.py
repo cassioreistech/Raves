@@ -20,10 +20,11 @@ from pathlib import Path
 
 from winbot.core import database
 from winbot.core.config import SecuritySettings, WorkflowStep, load_settings
+from winbot.core.diagnostics import capture_error_snapshot
 from winbot.core.learner import BehaviorLearner
 from winbot.core.logger import audit, logger
 from winbot.core.security import SecurityViolationError
-from winbot.engine import gui, shell, windows_api
+from winbot.engine import gui, shell, uia_engine, windows_api
 
 __all__ = [
     "APP_ALIASES",
@@ -74,8 +75,13 @@ def _clean_temp(*, dry_run: bool) -> str:
 
 
 def execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool) -> StepOutcome:
-    """Executa uma acao validada. Violacao de seguranca => blocked=True (fail-closed)."""
+    """Executa uma acao validada. Violacao de seguranca => blocked=True (fail-closed).
+
+    Toda falha (excecao ou resultado False) gera um snapshot de diagnostico em
+    ~/.winbot/crash_reports, conforme a Etapa 2 (RPA Nativo).
+    """
     action, params = step.action, step.params
+    outcome: StepOutcome | None = None
     try:
         if action == "powershell":
             res = shell.run_powershell(
@@ -85,20 +91,21 @@ def execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool)
                 dry_run=dry_run,
             )
             if res.simulated:
-                return StepOutcome(True, "simulado")
-            message = res.stdout.strip() if res.success else res.stderr.strip()
-            return StepOutcome(res.success, message or "sem saida")
+                outcome = StepOutcome(True, "simulado")
+            else:
+                message = res.stdout.strip() if res.success else res.stderr.strip()
+                outcome = StepOutcome(res.success, message or "sem saida")
 
-        if action == "launch_app":
+        elif action == "launch_app":
             ok = windows_api.launch_app(
                 str(params.get("target", "")),
                 params.get("args"),
                 dry_run=dry_run,
                 policy=policy,
             )
-            return StepOutcome(ok, f"App iniciado: {params.get('target')}" if ok else "Falha")
+            outcome = StepOutcome(ok, f"App iniciado: {params.get('target')}" if ok else "Falha")
 
-        if action == "kill_process":
+        elif action == "kill_process":
             raw_names = params.get("name", "")
             names = (
                 [str(name) for name in raw_names]
@@ -110,48 +117,94 @@ def execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool)
                 for name in names
             )
             suffix = "seriam encerradas" if dry_run else "encerrada(s)"
-            return StepOutcome(True, f"{count} instancia(s) {suffix}")
+            outcome = StepOutcome(True, f"{count} instancia(s) {suffix}")
 
-        if action == "focus_window":
+        elif action == "focus_window":
             ok = windows_api.focus_window(str(params.get("title", "")), dry_run=dry_run)
-            return StepOutcome(ok, "Janela focada" if ok else "Janela nao encontrada")
+            outcome = StepOutcome(ok, "Janela focada" if ok else "Janela nao encontrada")
 
-        if action == "gui_click":
+        elif action == "gui_click":
             detail = gui.click_at(int(params["x"]), int(params["y"]), dry_run=dry_run)
-            return StepOutcome(True, detail)
+            outcome = StepOutcome(True, detail)
 
-        if action == "gui_click_image":
+        elif action == "gui_click_image":
             detail = gui.click_image(
                 str(params["image"]),
                 dry_run=dry_run,
                 timeout=float(params.get("timeout", 10)),
             )
-            return StepOutcome(detail != "imagem nao encontrada na tela", detail)
+            outcome = StepOutcome(detail != "imagem nao encontrada na tela", detail)
 
-        if action == "gui_type":
+        elif action == "gui_type":
             detail = gui.type_text_safe(str(params["text"]), dry_run=dry_run)
-            return StepOutcome(True, detail)
+            outcome = StepOutcome(True, detail)
 
-        if action == "gui_hotkey":
+        elif action == "gui_hotkey":
             detail = gui.hotkey([str(key) for key in params["keys"]], dry_run=dry_run)
-            return StepOutcome(True, detail)
+            outcome = StepOutcome(True, detail)
 
-        if action == "clean_temp":
-            return StepOutcome(True, _clean_temp(dry_run=dry_run))
+        elif action == "clean_temp":
+            outcome = StepOutcome(True, _clean_temp(dry_run=dry_run))
 
-        if action == "wait":
+        elif action == "wait":
             seconds = float(params.get("seconds", 1))
             if not dry_run:
                 time.sleep(seconds)
-            return StepOutcome(
+            outcome = StepOutcome(
                 True, f"Aguardaria {seconds}s" if dry_run else f"Aguardou {seconds}s"
             )
 
-        return StepOutcome(False, f"Acao nao suportada: {action}")
+        elif action == "uia_click":
+            if dry_run:
+                outcome = StepOutcome(True, "simulado")
+            else:
+                window = str(params.get("window", "") or "")
+                if not window:
+                    window = uia_engine.foreground_window_title() or ""
+                ok, message = uia_engine.click_control(
+                    window,
+                    str(params.get("control", "")),
+                    params.get("control_type"),
+                )
+                outcome = StepOutcome(ok, message)
+
+        elif action == "uia_fill":
+            if dry_run:
+                outcome = StepOutcome(True, "simulado")
+            else:
+                ok, message = uia_engine.fill_field(
+                    str(params.get("window", "")),
+                    str(params.get("control", "")),
+                    str(params.get("text", "")),
+                    bool(params.get("press_enter", False)),
+                )
+                outcome = StepOutcome(ok, message)
+
+        elif action == "wait_window":
+            title = str(params.get("title", ""))
+            timeout = int(params.get("timeout", 15))
+            if dry_run:
+                outcome = StepOutcome(True, f"aguardaria janela '{title}'")
+            else:
+                ok = uia_engine.wait_for_window(title, timeout)
+                outcome = StepOutcome(
+                    ok, "Janela pronta" if ok else "Janela nao encontrada no timeout"
+                )
+
+        else:
+            outcome = StepOutcome(False, f"Acao nao suportada: {action}")
+
     except SecurityViolationError as exc:
+        capture_error_snapshot(step.name, str(exc))
         return StepOutcome(False, str(exc), blocked=True)
-    except OSError as exc:
+    except Exception as exc:
+        capture_error_snapshot(step.name, str(exc))
         return StepOutcome(False, str(exc))
+
+    assert outcome is not None
+    if not outcome.ok:
+        capture_error_snapshot(step.name, outcome.message)
+    return outcome
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +228,7 @@ class DispatchResult:
     blocked: bool = False
 
 
-_VERBS = r"abrir|fechar|focar|digitar|atalho|limpar|esperar|ps"
+_VERBS = r"abrir|fechar|focar|digitar|atalho|limpar|esperar|ps|clicar"
 
 # Resolucoes conhecidas, consultadas ANTES do indice SQLite.
 APP_ALIASES: dict[str, str] = {
@@ -297,6 +350,37 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
             )
         ]
 
+    # UIA: "clicar em <controle> na janela <titulo>" ou "clicar no botao <controle>"
+    # (usa a janela ativa quando o titulo nao e informado).
+    match = re.fullmatch(r"clicar\s+em\s+(.+?)\s+na\s+janela\s+(.+)", text, _FLAGS)
+    if match:
+        control = match.group(1).strip()
+        window = match.group(2).strip()
+        return [
+            CommandSpec(
+                f"clicar '{control}' em '{window}'",
+                WorkflowStep(
+                    name="uia_click",
+                    action="uia_click",
+                    params={"window": window, "control": control},
+                ),
+            )
+        ]
+
+    match = re.fullmatch(r"clicar\s+no\s+bot[aã]o\s+(.+)", text, _FLAGS)
+    if match:
+        control = match.group(1).strip()
+        return [
+            CommandSpec(
+                f"clicar '{control}' (janela ativa)",
+                WorkflowStep(
+                    name="uia_click",
+                    action="uia_click",
+                    params={"window": "", "control": control},
+                ),
+            )
+        ]
+
     match = re.fullmatch(r"digitar\s+(.+)", text, _FLAGS)
     if match:
         payload = match.group(1).strip()
@@ -336,6 +420,21 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
             CommandSpec(
                 "limpar temp",
                 WorkflowStep(name="limpar temp", action="clean_temp", params={}),
+            )
+        ]
+
+    match = re.fullmatch(r"esperar\s+janela\s+(.+)", text, re.IGNORECASE)
+    if match:
+        title = match.group(1).strip()
+        timeout = 15
+        return [
+            CommandSpec(
+                f"esperar janela '{title}'",
+                WorkflowStep(
+                    name="wait_window",
+                    action="wait_window",
+                    params={"title": title, "timeout": timeout},
+                ),
             )
         ]
 

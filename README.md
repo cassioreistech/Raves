@@ -89,6 +89,33 @@ no Windows 10/11 o `calc.exe` é apenas um stub. O texto de `digitar` nunca apar
 no rótulo nem em log (pode ser senha). Ícones ✔/✘ em UTF-8, com fallback ASCII
 `OK`/`X` em consoles cp1252 que não aceitarem o reconfigure.
 
+## RPA Nativo · Etapa 2 (Windows UI Automation + Tenacity)
+
+Automação **por nome acessível**, não por coordenada: funciona com janela
+redimensionada/movida e em monitores com escalas DPI diferentes. Tudo com
+retentativas (`tenacity`) e diagnóstico automático em falha.
+
+```powershell
+.\.venv\Scripts\winbot.exe rpa inspect Calculadora --depth 8
+.\.venv\Scripts\winbot.exe do "clicar em Cinco na janela Calculadora"
+.\.venv\Scripts\winbot.exe do "focar Calculadora e clicar no botao Dois"
+.\.venv\Scripts\winbot.exe do "esperar janela Calculadora"
+```
+
+Ações de workflow (schema validado): `uia_click`, `uia_fill`, `wait_window`.
+Quando uma etapa falha, `core/diagnostics.py` grava screenshot + `.txt` em
+`~/.winbot/crash_reports` (100% local; screenshot pode falhar em sessão RDP).
+
+Motor `engine/uia_engine.py`:
+- `wait_for_window(title, timeout=15)` — tenacity (0.5s, até timeout)
+- `click_control(window, control, control_type=None)` — `invoke()` com fallback
+  `click_input()`
+- `fill_field(window, field, text, press_enter=False)` — `set_edit_text()` com
+  fallback clipboard (acentos PT-BR)
+- `list_window_controls(window, max_depth=3)` — tabela Rich via
+  `winbot rpa inspect`
+- `foreground_window_title()`
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

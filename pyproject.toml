@@ -20,6 +20,7 @@ dependencies = [
     "pywinauto>=0.6.8; sys_platform == 'win32'", # primário para automação GUI/UIA
     "pyautogui>=0.9.54",                         # clique por coordenada/imagem, hotkeys
     "pyperclip>=1.8.2",                          # type_text_safe via clipboard
+    "tenacity>=8.3.0",                          # retentativas com backoff (UIA, janelas)
     "cryptography>=42.0.0",                      # licenciamento Ed25519
 ]
 

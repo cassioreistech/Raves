@@ -10,6 +10,8 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
+from winbot.engine import uia_engine
+
 app = typer.Typer(help="Ferramentas de diagnóstico e inspeção RPA.")
 console = Console()
 
@@ -50,3 +52,42 @@ def spy(
                 time.sleep(interval)
     except KeyboardInterrupt:
         console.print("\n[dim]Spy encerrado.[/dim]")
+
+
+@app.command("inspect")
+def inspect(
+    title: Annotated[
+        str,
+        typer.Argument(help="Trecho do título da janela (case-insensitive)."),
+    ],
+    max_depth: Annotated[
+        int, typer.Option("--depth", help="Profundidade máxima na árvore UIA")
+    ] = 3,
+) -> None:
+    """Lista botões e campos detectados via UIA numa janela (para criar automações)."""
+    try:
+        controls = uia_engine.list_window_controls(title, max_depth=max_depth)
+    except Exception as exc:
+        console.print(f"[bold red]Erro:[/bold red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if not controls:
+        console.print(f"[yellow]Nenhum controle encontrado em '{title}'.[/yellow]")
+        return
+
+    table = Table(
+        title=f"Controles UIA — {title} ({len(controls)} encontrados)",
+        border_style="cyan",
+    )
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Título", style="bold white", overflow="fold")
+    table.add_column("Tipo", style="cyan")
+    table.add_column("Auto ID", style="dim", overflow="fold")
+    for index, control in enumerate(controls, start=1):
+        table.add_row(
+            str(index),
+            control.get("title") or "(sem título)",
+            control.get("control_type") or "-",
+            control.get("auto_id") or "-",
+        )
+    console.print(table)

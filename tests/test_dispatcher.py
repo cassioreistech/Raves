@@ -159,6 +159,48 @@ def test_shell_sai_com_exit() -> None:
     assert "Até logo" in result.stdout
 
 
+# --- Etapa 2 (RPA Nativo UIA) ---------------------------------------------
+
+
+def test_parse_clicar_em_janela_e_botao_ativo() -> None:
+    specs = parse_instruction("clicar em Cinco na janela Calculadora")
+    assert specs[0].step.action == "uia_click"
+    assert specs[0].step.params == {"window": "Calculadora", "control": "Cinco"}
+
+    specs = parse_instruction("clicar no botao Seis")
+    assert specs[0].step.action == "uia_click"
+    assert specs[0].step.params["window"] == ""
+    assert specs[0].step.params["control"] == "Seis"
+
+
+def test_parse_esperar_janela() -> None:
+    specs = parse_instruction("esperar janela Calculadora")
+    assert specs[0].step.action == "wait_window"
+    assert specs[0].step.params["title"] == "Calculadora"
+    assert specs[0].step.params["timeout"] == 15
+
+
+def test_uia_click_dry_run_nao_clica(mocker) -> None:
+    click = mocker.patch("winbot.engine.uia_engine.click_control", return_value=(True, "ok"))
+    results = execute_natural_command(
+        "clicar em Cinco na janela Calculadora", apply=False, policy=SecuritySettings()
+    )
+    assert results[0].ok is True
+    click.assert_not_called()
+
+
+def test_uia_click_falha_gera_snapshot(mocker) -> None:
+    mocker.patch(
+        "winbot.engine.uia_engine.click_control", return_value=(False, "controle não encontrado")
+    )
+    snapshot = mocker.patch("winbot.core.dispatcher.capture_error_snapshot")
+    results = execute_natural_command(
+        "clicar em Inexistente na janela Calculadora", apply=True, policy=SecuritySettings()
+    )
+    assert results[0].ok is False
+    snapshot.assert_called_once()
+
+
 # --- Etapa 1 de Blindagem: indice, resolucao de nomes e memoria ------------
 
 
