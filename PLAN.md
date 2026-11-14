@@ -2,7 +2,7 @@
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
-> **RPA Nativo Etapa 2 ✅ validada**.
+> RPA Nativo Etapa 2 ✅ · **Áudio Etapa 3 ✅ validada**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -296,8 +296,37 @@ Calculadora"` → ✔.
 novos casos no dispatcher. `execute_step` agora captura snapshot em exceções e
 em resultados False.
 
+## 15. Engenharia de Áudio · Etapa 3 (14/11) ✅
+
+**Entregue:** `core/database.py` ganhou tabelas `speech_corrections` e
+`voice_profile` + `save_speech_correction` / `apply_speech_corrections` /
+`get_custom_vocab` / `add_custom_vocab` / `get_speech_corrections` /
+`get_voice_profile` / `set_voice_profile`. `engine/audio_pipeline.py`
+(`ResilientAudioCapture`: ring buffer 1,5s, AGC suave, filtro passa-alta 80 Hz,
+auto-recovery de PortAudio, VAD webrtcvad, silêncio adaptativo 0,8/1,5s,
+calibração de piso de ruído). `engine/voice.py` (`VoiceEngine`: faster-whisper
+com `initial_prompt` dinâmico, TTS pyttsx3 em thread dedicada com barge-in,
+`listen_once` com fuzzy match + aprendizado pós-execução, `run_loop`).
+`commands/voice_cmd.py` (calibração + listagem do aprendizado fonético) e
+`commands/voice.py` (listen + calibrate). Dispatcher: `quando eu disser X entenda Y`,
+`aprender palavra X`, `memorizar termo X`. `pyproject.toml`: sounddevice, numpy,
+webrtcvad-wheels, faster-whisper, pyttsx3.
+
+**Gates:** `pytest -q` → **160 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `voice calibrate` calibrou piso de ruído,
+capturou 57600 bytes de PCM (3s), montou initial_prompt de 795 chars com apps
+indexados; treino via `do` gravou correção `crôme → chrome` e vocabulário
+`vé éssi code`, `uatsap`; `apply_speech_corrections('abrir crôme')` →
+`'abrir chrome'`; `match_command` retorna candidato com ratio ≥ 0,75; `voice
+listen` inicia o observador e encerra limpo em `sair`.
+
+**Decisão honesta registrada:** `voice listen` roda em **modo texto** — Whisper e
+pyttsx3 estão instalados e a calibração funciona, mas a captura ao vivo via
+`sounddevice` depende de microfone padrão configurado e ASR/TTS real fica para
+etapa futura. Nada usa nuvem/API.
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 3 de Blindagem (escopo ainda a definir).
+Etapa 4 de Blindagem (escopo a definir).

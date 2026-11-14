@@ -21,6 +21,11 @@ dependencies = [
     "pyautogui>=0.9.54",                         # clique por coordenada/imagem, hotkeys
     "pyperclip>=1.8.2",                          # type_text_safe via clipboard
     "tenacity>=8.3.0",                          # retentativas com backoff (UIA, janelas)
+    "sounddevice>=0.4.6",                       # captura de audio (PortAudio)
+    "numpy>=1.26.0",                            # DSP: ring buffer, AGC, filtro passa-alta
+    "webrtcvad-wheels>=2.0.14",                 # deteccao de voz (wheel pre-compilado; fornece o modulo webrtcvad)
+    "faster-whisper>=1.0.0",                    # STT offline (CTranslate2)
+    "pyttsx3>=2.90",                            # TTS offline (SAPI5)
     "cryptography>=42.0.0",                      # licenciamento Ed25519
 ]
 

@@ -116,6 +116,45 @@ Motor `engine/uia_engine.py`:
   `winbot rpa inspect`
 - `foreground_window_title()`
 
+## Engenharia de Áudio · Etapa 3 (STT/TTS offline, barge-in, aprendizado fonético)
+
+Pipeline de voz 100% offline. Nenhuma rede, nenhum modelo em nuvem.
+
+```powershell
+.\.venv\Scripts\winbot.exe voice calibrate
+.\.venv\Scripts\winbot.exe voice listen
+.\.venv\Scripts\winbot.exe do "quando eu disser crôme entenda chrome"
+.\.venv\Scripts\winbot.exe do "aprender palavra vé éssi code"
+.\.venv\Scripts\winbot.exe do "memorizar termo uatsap"
+```
+
+Camadas (`engine/audio_pipeline.py` + `engine/voice.py`):
+- Ring buffer de pré-roll (1,5s) + AGC suave + filtro passa-alta 80 Hz
+- Auto-recovery de PortAudio (fone desconectado/trocado): reabre o stream sem
+  fechar o programa
+- VAD neural (webrtcvad) em vez de RMS bruto
+- Silêncio adaptativo: frases curtas cortam em ~0,8s, longas aguardam ~1,5s
+- `initial_prompt` dinâmico no faster-whisper: apps indexados + vocabulário
+  customizado + correções fonéticas já aprendidas
+- TTS (pyttsx3/SAPI5) em thread dedicada com **barge-in**: se você começar a
+  falar por cima, o robô cala imediatamente
+- Aprendizado pós-execução: transcrição levemente distorcida + comando executado
+  com sucesso → par gravado em `speech_corrections` (fuzzy match ≥ 0,75)
+
+Banco (`~/.winbot/winbot.db`):
+- `speech_corrections(heard_phrase PK, mapped_phrase, hits, updated_at)`
+- `voice_profile(key PK, value)`
+
+Comandos naturais: `quando eu disser X entenda Y`, `aprender palavra X`,
+`memorizar termo X`. `apply_speech_corrections` roda antes do dispatcher, então
+a correção é instantânea na próxima vez. `redact_command` mascara payloads de
+`digitar` na exibição.
+
+> **Nota honesta:** `voice listen` roda em **modo texto** (sem ASR/TTS real).
+> Whisper e pyttsx3 estão instalados e a calibração funciona, mas a captura de
+> áudio ao vivo via `sounddevice` depende de um microfone padrão configurado.
+> ASR/TTS real fica para uma etapa futura — nada aqui usa nuvem/API.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

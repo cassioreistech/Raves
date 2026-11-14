@@ -608,6 +608,32 @@ def _handle_insights(raw: str) -> list[DispatchResult]:
     return results
 
 
+def _handle_voice_training(raw: str) -> list[DispatchResult]:
+    """'quando eu disser X entenda Y' / 'aprender palavra X' / 'memorizar termo X'."""
+    # "quando eu disser <heard> entenda <mapped>"
+    match = re.match(
+        r"quando\s+eu\s+disser\s+(.+?)\s+entenda\s+(.+)", raw.strip(), re.IGNORECASE | re.DOTALL
+    )
+    if match:
+        heard = match.group(1).strip()
+        mapped = match.group(2).strip()
+        if database.save_speech_correction(heard, mapped):
+            return [DispatchResult("voz", True, f"Aprendido: '{heard}' → '{mapped}'")]
+        return [DispatchResult("voz", False, "Não foi possível salvar a correção")]
+
+    # "aprender palavra <termo>" / "memorizar termo <termo>"
+    match = re.match(
+        r"(?:aprender\s+palavra|memorizar\s+termo)\s+(.+)", raw.strip(), re.IGNORECASE | re.DOTALL
+    )
+    if match:
+        term = match.group(1).strip()
+        if database.add_custom_vocab(term):
+            return [DispatchResult("voz", True, f"Termo '{term}' memorizado para o Whisper")]
+        return [DispatchResult("voz", False, f"'{term}' já estava no vocabulário")]
+
+    return [DispatchResult("voz", False, f"Comando de treino não reconhecido: '{raw}'")]
+
+
 def execute_natural_command(
     instruction: str,
     *,
@@ -628,6 +654,8 @@ def execute_natural_command(
     # mas precisam cair no learner, nao no repetir/historico.
     if database.is_insight_command(raw):
         return _handle_insights(raw)
+    if any(raw.lower().startswith(p) for p in database.VOICE_TRAIN_PREFIXES):
+        return _handle_voice_training(raw)
     if database.is_memory_command(raw):
         return _handle_memory(raw, apply=apply, policy=active)
 

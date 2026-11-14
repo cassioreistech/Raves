@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -37,7 +38,14 @@ INSIGHT_PREFIXES: tuple[str, ...] = (
     "sugestões",
     "meu perfil",
 )
-MEMORY_PREFIXES: tuple[str, ...] = REPEAT_PREFIXES + HISTORY_PREFIXES + INSIGHT_PREFIXES
+VOICE_TRAIN_PREFIXES: tuple[str, ...] = (
+    "quando eu disser",
+    "aprender palavra",
+    "memorizar termo",
+)
+MEMORY_PREFIXES: tuple[str, ...] = (
+    REPEAT_PREFIXES + HISTORY_PREFIXES + INSIGHT_PREFIXES + VOICE_TRAIN_PREFIXES
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS installed_apps (
@@ -87,6 +95,18 @@ CREATE TABLE IF NOT EXISTS learned_routines (
 CREATE TABLE IF NOT EXISTS app_meta (
     key   TEXT PRIMARY KEY,
     value TEXT
+);
+
+-- Aprendizado fonetico (Etapa 3).
+CREATE TABLE IF NOT EXISTS speech_corrections (
+    heard_phrase  TEXT PRIMARY KEY,
+    mapped_phrase TEXT NOT NULL,
+    hits          INTEGER DEFAULT 1,
+    updated_at    TEXT
+);
+CREATE TABLE IF NOT EXISTS voice_profile (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 """
 
@@ -565,3 +585,94 @@ def purge_observer_data() -> None:
         conn.execute("DELETE FROM user_interests")
         conn.execute("DELETE FROM learned_routines")
         conn.execute("DELETE FROM app_meta")
+
+
+# ---------------------------------------------------------------------------
+# Aprendizado fonetico (speech_corrections + voice_profile)
+# ---------------------------------------------------------------------------
+
+
+def save_speech_correction(heard: str, mapped: str) -> bool:
+    """Registra que o Whisper ouviu ``heard`` mas o correto é ``mapped``."""
+    heard = heard.strip().lower()
+    mapped = mapped.strip()
+    if not heard or not mapped or heard == mapped:
+        return False
+    now = _utcnow()
+    with _connect() as conn:
+        existing = conn.execute(
+            "SELECT hits FROM speech_corrections WHERE heard_phrase = ?", (heard,)
+        ).fetchone()
+        if existing is None:
+            conn.execute(
+                "INSERT INTO speech_corrections (heard_phrase, mapped_phrase, hits, updated_at) "
+                "VALUES (?, ?, 1, ?)",
+                (heard, mapped, now),
+            )
+        else:
+            conn.execute(
+                "UPDATE speech_corrections SET mapped_phrase = ?, hits = hits + 1, "
+                "updated_at = ? WHERE heard_phrase = ?",
+                (mapped, now, heard),
+            )
+    return True
+
+
+def get_speech_corrections() -> list[dict[str, Any]]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT heard_phrase, mapped_phrase, hits, updated_at "
+            "FROM speech_corrections ORDER BY hits DESC, heard_phrase ASC"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def apply_speech_corrections(text: str) -> str:
+    """Aplica correções fonéticas aprendidas antes de chegar ao dispatcher."""
+    if not text:
+        return text
+    result = text
+    for row in get_speech_corrections():
+        heard = str(row["heard_phrase"])
+        mapped = str(row["mapped_phrase"])
+        result = re.sub(re.escape(heard), mapped, result, flags=re.IGNORECASE)
+    return result
+
+
+def get_custom_vocab() -> list[str]:
+    """Termos técnicos memorizados para injetar no initial_prompt do Whisper."""
+    raw = get_meta("custom_vocab")
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def add_custom_vocab(term: str) -> bool:
+    term = term.strip()
+    if not term:
+        return False
+    vocab = get_custom_vocab()
+    if term in vocab:
+        return False
+    vocab.append(term)
+    set_meta("custom_vocab", json.dumps(vocab, ensure_ascii=False))
+    return True
+
+
+def get_voice_profile(key: str) -> str | None:
+    with _connect() as conn:
+        row = conn.execute("SELECT value FROM voice_profile WHERE key = ?", (key,)).fetchone()
+    return str(row["value"]) if row is not None else None
+
+
+def set_voice_profile(key: str, value: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO voice_profile (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
