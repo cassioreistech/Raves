@@ -17,6 +17,7 @@ from raves.commands import (
     apps,
     flow,
     insights,
+    pack_cmd,
     rpa_tools,
     schedule,
     system,
@@ -58,6 +59,7 @@ app.add_typer(insights.app, name="insights")
 app.add_typer(voice.app, name="voice")
 app.add_typer(tray.app, name="tray")
 app.add_typer(flow.app, name="flow")
+app.add_typer(pack_cmd.app, name="pack")
 app.add_typer(triggers_cmd.app, name="trigger")
 
 console = Console()

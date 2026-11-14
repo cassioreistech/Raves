@@ -938,10 +938,108 @@ def execute_natural_command(
     # Insight primeiro: esses prefixos tambem estao em MEMORY_PREFIXES (anti-loop),
     # mas precisam cair no learner, nao no repetir/historico.
     lowered = raw.strip().lower()
+
     if lowered in {"ler tela", "o que esta escrito na tela", "o que está escrito na tela"}:
         text = vision.read_screen_text()
         summary = text.strip()[:500] or "(nenhum texto detectado)"
         result = [DispatchResult("ler tela", True, summary)]
+        _log(raw, result)
+        return result
+
+    # Hardware / midia / print
+    if lowered in {"mutar", "desmutar", "mute", "unmute"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("mute", True, hardware.toggle_mute())]
+        _log(raw, result)
+        return result
+    if lowered in {"aumentar volume", "volume mais", "volume up"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("volume", True, hardware.change_volume(10))]
+        _log(raw, result)
+        return result
+    if lowered in {"diminuir volume", "volume menos", "volume down"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("volume", True, hardware.change_volume(-10))]
+        _log(raw, result)
+        return result
+    if lowered in {"pausar musica", "pausar música", "play pause", "play/pause"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("midia", True, hardware.media_control("play_pause"))]
+        _log(raw, result)
+        return result
+    if lowered in {"proxima musica", "próxima música", "next track", "proxima"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("midia", True, hardware.media_control("next"))]
+        _log(raw, result)
+        return result
+    if lowered in {"musica anterior", "música anterior", "prev track", "anterior"}:
+        from raves.engine import hardware
+
+        result = [DispatchResult("midia", True, hardware.media_control("prev"))]
+        _log(raw, result)
+        return result
+    if lowered in {"tirar print", "capturar tela", "screenshot"}:
+        from raves.engine import hardware
+
+        path = hardware.take_screenshot(save_to_desktop=True)
+        result = [DispatchResult("print", True, f"Screenshot salvo em {path}")]
+        _log(raw, result)
+        return result
+
+    # Leitura de documento
+    if lowered.startswith("ler arquivo ") or lowered.startswith("resumir arquivo "):
+        summarize = lowered.startswith("resumir arquivo ")
+        file_path = (
+            raw[len("resumir arquivo ") if summarize else len("ler arquivo ") :]
+            .strip()
+            .strip("\"'")
+        )
+        from raves.engine import doc_reader
+
+        if summarize:
+            text = doc_reader.summarize_document(file_path)
+        else:
+            text = doc_reader.extract_document_text(file_path)
+        result = [DispatchResult("documento", True, text[:1000])]
+        _log(raw, result)
+        return result
+
+    # Lembrete
+    import re as _re
+
+    reminder_match = _re.match(
+        r"(?:me avisa em|lembrete em)\s+(\d+)\s+(minutos?|segundos?|horas?)\s+para\s+(.+)",
+        raw,
+        _re.IGNORECASE,
+    )
+    if reminder_match:
+        amount = int(reminder_match.group(1))
+        unit = reminder_match.group(2).lower()
+        message = reminder_match.group(3).strip()
+        if unit.startswith("min"):
+            delay = amount * 60
+        elif unit.startswith("hora"):
+            delay = amount * 3600
+        else:
+            delay = amount
+        from raves.core import reminders
+
+        text = reminders.schedule_reminder(delay, message)
+        result = [DispatchResult("lembrete", True, text)]
+        _log(raw, result)
+        return result
+
+    # Volume com porcentagem
+    volume_match = _re.match(r"volume\s+em\s+(\d+)\s*%?", raw, _re.IGNORECASE)
+    if volume_match:
+        from raves.engine import hardware
+
+        result = [DispatchResult("volume", True, hardware.set_volume(int(volume_match.group(1))))]
         _log(raw, result)
         return result
 
