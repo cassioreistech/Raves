@@ -194,8 +194,10 @@ def interactive_loop(
                     console.print("[dim]Ouvindo...[/dim]")
                     pedido = engine.listen_once()
                     if pedido is None:
+                        console.print("[dim]Não detectei fala. Tente de novo.[/dim]")
                         continue
                     pedido = pedido.strip()
+                    console.print(f"[cyan]Ouvi:[/cyan] {pedido}")
                 else:
                     pedido = Prompt.ask(prompt, console=console).strip()
             except (EOFError, KeyboardInterrupt):

@@ -24,7 +24,7 @@ SAMPLE_RATE = 16000
 BLOCK_SIZE = 1024  # ~64 ms a 16 kHz
 PRE_ROLL_SECONDS = 1.5
 VAD_FRAME = 480  # 30 ms a 16 kHz (exigido pelo webrtcvad)
-VAD_AGGRESSIVENESS = 2
+VAD_AGGRESSIVENESS = 3
 
 
 def _highpass_alpha(cutoff_hz: float, sample_rate: int) -> float:
@@ -169,7 +169,12 @@ class ResilientAudioCapture:
         return np.clip(out, -1.0, 1.0).astype(np.float32)
 
     def _is_speech(self, block: np.ndarray) -> bool:
-        """VAD neural (webrtcvad) sobre frames de 30 ms."""
+        """VAD neural (webrtcvad) sobre frames de 30 ms, com gate de RMS."""
+        # Gate de RMS: ignora blocos abaixo de 2.5x o piso de ruido (evita
+        # falso positivo com ar-condicionado/ventilador).
+        rms = float(np.sqrt(np.mean(block**2))) if block.size else 0.0
+        if self._calibrated and rms < max(0.005, self._noise_floor * 2.5):
+            return False
         vad = self._lazy_vad()
         pcm = (block * 32767.0).astype(np.int16).tobytes()
         # webrtcvad exige blocos de 10/20/30 ms (160/320/480 amostras a 16 kHz).
