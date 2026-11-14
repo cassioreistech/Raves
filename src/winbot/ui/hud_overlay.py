@@ -11,7 +11,7 @@ from typing import Any
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QRadialGradient
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QLineEdit, QWidget
 
 from winbot.ui.state_bridge import UiState
 
@@ -58,8 +58,18 @@ class HudOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        self.resize(320, 120)
+        self.resize(360, 130)
         self._position_default()
+
+        self.text_input = QLineEdit(self)
+        self.text_input.setPlaceholderText("Digite um pedido e Enter…")
+        self.text_input.setGeometry(108, self.height() - 34, self.width() - 116, 24)
+        self.text_input.setStyleSheet(
+            "QLineEdit { background: rgba(11,19,36,0.85); color: #E0F7FA; "
+            "border: 1px solid #00E5FF; border-radius: 6px; padding: 2px 6px; }"
+        )
+        self.text_input.returnPressed.connect(self._on_text_submitted)
+        self.text_input.hide()
 
         bridge.state_changed.connect(self._on_state_changed)
         bridge.audio_level_changed.connect(self._on_level)
@@ -93,6 +103,8 @@ class HudOverlay(QWidget):
     def show_animated(self) -> None:
         self.show()
         self.raise_()
+        self.text_input.show()
+        self.text_input.setFocus()
         self._auto_hide_timer.stop()
         if self._state not in (
             UiState.LISTENING.value,
@@ -103,6 +115,8 @@ class HudOverlay(QWidget):
 
     def hide_animated(self) -> None:
         self._auto_hide_timer.stop()
+        self.text_input.hide()
+        self.text_input.clear()
         self.hide()
 
     def _on_auto_hide(self) -> None:
@@ -145,6 +159,42 @@ class HudOverlay(QWidget):
 
     def mouseDoubleClickEvent(self, event: Any) -> None:
         self.bridge.request_settings.emit()
+
+    # ------------------------------------------------------------------
+    # Teclado
+    # ------------------------------------------------------------------
+
+    def keyPressEvent(self, event: Any) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide_animated()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _on_text_submitted(self) -> None:
+        text = self.text_input.text().strip()
+        if not text:
+            return
+        self.text_input.clear()
+        self._auto_hide_timer.stop()
+        self.bridge.set_state("THINKING", text[:80])
+
+        def worker() -> None:
+            try:
+                from winbot.core.config import load_settings
+                from winbot.core.dispatcher import execute_natural_command
+
+                settings = load_settings()
+                results = execute_natural_command(text, apply=True, policy=settings.security)
+                summary = " | ".join(item.message for item in results)[:120]
+                ok = all(item.ok and not item.blocked for item in results)
+                self.bridge.set_state("SUCCESS" if ok else "ERROR", summary or text[:80])
+            except Exception as exc:
+                self.bridge.set_state("ERROR", str(exc)[:80])
+
+        import threading
+
+        threading.Thread(target=worker, name="hud-text-submit", daemon=True).start()
 
     # ------------------------------------------------------------------
     # Renderização

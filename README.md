@@ -271,6 +271,28 @@ envia a requisição com `keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140
 Após 90s de ociosidade o modelo é descarregado da RAM. Se o Ollama não estiver
 instalado, degrada graciosamente (fallback offline com dicas).
 
+## Blindagem · Etapa 6 (Contexto de Sessão, Normalizador, Risco 3 Níveis)
+
+```powershell
+# Anáforas funcionam em uma única chamada (contexto de sessão em memória):
+.\.venv\Scripts\winbot.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
+
+# Cortesia é removida antes do parser (aspas preservadas):
+.\.venv\Scripts\winbot.exe do "por favor abrir calc agora"
+
+# Comandos de perfil:
+.\.venv\Scripts\winbot.exe do "tocar musica"
+.\.venv\Scripts\winbot.exe do "preparar meu ambiente"
+
+# Risco 3 níveis: GREEN executa, YELLOW/RED pedem confirmação [s/N].
+.\.venv\Scripts\winbot.exe do "limpar temp"          # RED -> prompt
+.\.venv\Scripts\winbot.exe do "limpar temp" --yes     # bypass
+.\.venv\Scripts\winbot.exe do "fechar calc"           # YELLOW -> prompt rápido
+```
+
+`core/session.py` rastreia `last_target_app` / `last_window_title` / `last_entities`.
+`core/security.py` expõe `RiskLevel` + `classify_risk` + `classify_workflow`.
+
 ## Interface Visual · Etapa 7 (HUD Orbital + Central Dark HUD)
 
 ```powershell

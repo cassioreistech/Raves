@@ -30,13 +30,16 @@ class VoiceEngine:
         model_size: str = "tiny",
         device: str = "cpu",
         compute_type: str = "int8",
+        state_bridge: Any = None,
     ) -> None:
         self.model_size = model_size
         self.device = device
         self.compute_type = compute_type
+        self.state_bridge = state_bridge
         self._model: Any = None
         self._model_lock = threading.Lock()
         self._audio = ResilientAudioCapture()
+        self._audio.on_audio_level = self._push_audio_level
         self._tts_queue: queue.Queue[str] = queue.Queue()
         self._tts_engine: Any = None
         self._speaking = threading.Event()
@@ -75,6 +78,20 @@ class VoiceEngine:
     @property
     def speaking(self) -> bool:
         return self._speaking.is_set()
+
+    def _emit(self, state: str, caption: str = "") -> None:
+        bridge = self.state_bridge
+        if bridge is None:
+            return
+        with contextlib.suppress(Exception):
+            bridge.set_state(state, caption)
+
+    def _push_audio_level(self, level: float) -> None:
+        bridge = self.state_bridge
+        if bridge is None:
+            return
+        with contextlib.suppress(Exception):
+            bridge.set_audio_level(level)
 
     # ------------------------------------------------------------------
     # STT
@@ -178,16 +195,22 @@ class VoiceEngine:
 
     def listen_once(self, timeout: float = 30.0) -> str | None:
         """Captura + transcreve + corrige + fuzzy match. Retorna o comando final."""
+        self._emit("LISTENING", "Ouvindo...")
+        if self.state_bridge is not None:
+            with contextlib.suppress(Exception):
+                self.state_bridge.request_show()
         pcm = self._audio.record_utterance(timeout=timeout)
         if not pcm:
             return None
+        self._emit("THINKING", "Transcrevendo...")
         raw = self.transcribe(pcm)
         if not raw:
+            self._emit("ERROR", "Não entendi")
             return None
+        self._emit("THINKING", raw[:80])
         corrected = database.apply_speech_corrections(raw)
         matched = self.match_command(corrected)
         command = matched or corrected
-        # Aprendizado automático pós-execução (só se houve correção real).
         if matched and matched.lower() != raw.strip().lower():
             similarity = difflib.SequenceMatcher(None, raw.strip().lower(), matched).ratio()
             if similarity >= 0.75:
@@ -236,6 +259,7 @@ class VoiceEngine:
                 continue
             self._speaking.set()
             self._interrupt.clear()
+            self._emit("SPEAKING", text[:80])
             monitor = threading.Thread(
                 target=self._barge_in_monitor, name="winbot-bargein", daemon=True
             )
@@ -249,6 +273,7 @@ class VoiceEngine:
                 self._speaking.clear()
                 self._interrupt.set()
                 monitor.join(timeout=0.5)
+                self._emit("SUCCESS", text[:80])
         with contextlib.suppress(Exception):
             engine.stop()
 

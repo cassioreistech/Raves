@@ -58,6 +58,7 @@ class ResilientAudioCapture:
         self._gain = 1.0
         self._vad = None
         self._last_block: np.ndarray | None = None
+        self.on_audio_level: Any = None
         self._lock = threading.Lock()
 
     def _lazy_vad(self) -> Any:
@@ -74,6 +75,12 @@ class ResilientAudioCapture:
             block = indata[:, 0].copy() if getattr(indata, "ndim", 1) > 1 else indata.copy()
             arr = np.asarray(block, dtype=np.float32)
             self._last_block = arr
+            if self.on_audio_level is not None:
+                try:
+                    rms = float(np.sqrt(np.mean(arr**2))) if arr.size else 0.0
+                    self.on_audio_level(min(1.0, rms * 4.0))  # normaliza grosseiramente
+                except Exception:
+                    pass
             self._queue.put_nowait(arr)
         except queue.Full:
             pass  # descarta bloco antigo em vez de travar a callback

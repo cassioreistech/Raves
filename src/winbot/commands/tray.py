@@ -167,6 +167,13 @@ def _quit_app() -> None:
         _qt_app.quit()
 
 
+def _assistente() -> None:
+    if _bridge is None:
+        return
+    _bridge.request_show.emit()  # type: ignore[attr-defined]
+    threading.Thread(target=_assistente_once, name="winbot-assistente", daemon=True).start()
+
+
 def _global_hotkey_loop() -> None:
     try:
         from pynput import keyboard
@@ -185,7 +192,7 @@ def _global_hotkey_loop() -> None:
         except Exception:
             pass
         if {"ctrl", "alt", "space"} <= pressed and _bridge is not None:
-            _bridge.request_show.emit()  # type: ignore[attr-defined]
+            _assistente()
             pressed.clear()
 
     def on_release(key: Any) -> None:
@@ -204,6 +211,44 @@ def _global_hotkey_loop() -> None:
         listener.stop()
 
 
+def _assistente_once() -> None:
+    global _bridge
+    bridge = _bridge
+    if bridge is None:
+        return
+    try:
+        from winbot.core.config import load_settings
+        from winbot.engine.voice import VoiceEngine
+
+        settings = load_settings()
+        engine = VoiceEngine(state_bridge=bridge)
+        engine.start()
+        if engine._get_model() is None:
+            bridge.set_state("ERROR", "Modelo Whisper ausente")
+            engine.stop()
+            return
+        bridge.set_state("LISTENING", "Ouvindo...")
+        text = engine.listen_once()
+        if not text:
+            bridge.set_state("HIDDEN", "")
+            engine.stop()
+            return
+        from winbot.core.dispatcher import execute_natural_command
+
+        results = execute_natural_command(text, apply=True, policy=settings.security)
+        summary = " | ".join(item.message for item in results)[:120]
+        ok = all(item.ok and not item.blocked for item in results)
+        bridge.set_state("SUCCESS" if ok else "ERROR", summary or text[:80])
+        if ok:
+            engine.speak(f"{len(results)} ação concluída.")
+        else:
+            engine.speak("Pedido interrompido.")
+        engine.stop()
+    except Exception as exc:
+        if bridge is not None:
+            bridge.set_state("ERROR", str(exc)[:80])
+
+
 def _build_tray_icon() -> QSystemTrayIcon:
     global _tray_icon
     icon = QSystemTrayIcon()
@@ -213,12 +258,7 @@ def _build_tray_icon() -> QSystemTrayIcon:
     menu = QMenu()
     act_show = QAction("Chamar Assistente (Ctrl+Alt+Space)", icon)
 
-    def _show() -> None:
-        bridge = _bridge
-        if bridge is not None:
-            bridge.request_show.emit()  # type: ignore[attr-defined]
-
-    act_show.triggered.connect(_show)
+    act_show.triggered.connect(_assistente)
     menu.addAction(act_show)
 
     act_settings = QAction("Abrir Configurações", icon)

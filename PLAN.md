@@ -6,8 +6,8 @@
 > quando o modelo está em cache) · System Tray Etapa 4 ✅ ·
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
 > Blindagem Etapa 6 ✅ · Setup Ollama Zero-Atrito ✅ ·
-> **Interface Visual Etapa 7 ✅** (HUD Orbital + Central Dark HUD, PySide6,
-> atalho global Ctrl+Alt+Space, `winbot ui`).
+> Interface Visual Etapa 7 ✅ ·
+> **Integração Viva Etapa 8 ✅** (HUD+Voz+Input rápido, autostart, templates, risco 3 níveis, --yes).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -442,8 +442,30 @@ graciosamente; `ai --help` lista status/setup/unload/shutdown.
 **Testes:** `tests/test_ui_state_bridge.py` (5), `tests/test_ui_hud.py` (3),
 `tests/test_ui_settings.py` (3).
 
+## 22. Integração Viva · Etapa 8 (14/11) ✅
+
+**Entregue:** `core/autostart.py` (HKCU Run, sem admin, enable/disable/is_enabled);
+`core/templates.py` (4 workflows de fábrica instalados se a pasta estiver vazia:
+modo_foco, limpeza_rapida, bom_dia, organizar_downloads); `ui/hud_overlay.py`
+ganhhou campo QLineEdit discreto (Enter → dispatcher em worker thread, ESC oculta);
+`ui/settings_window.py` ganhou checkbox de autostart e botão "+ Criar Novo Workflow"
+(modal com editor YAML); `engine/voice.py` emite sinais no StateBridge (LISTENING
+com audio_level, THINKING, SPEAKING, SUCCESS/ERROR) e HUD mostra input rápido;
+`tray.py` "Chamar Assistente" dispara ciclo de voz em background; `main.py`
+bootstrap instala templates padrão.
+
+**Gates:** `pytest -q` → **225 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: normalizer `por favor abrir calc agora` →
+`abrir calc`; anáfora `abrir notepad e digitar ola mundo e fechar isso --yes` →
+4 ações OK (foco + digitação + fechamento); `limpar temp` RED com prompt [s/N];
+`--yes` bypassa; `tocar musica` abre player indexado.
+
+**Testes:** `tests/test_session.py` (2), `tests/test_autostart.py` (2),
+`tests/test_templates.py` (2), `tests/test_ui_hud.py` (5), novos casos em
+`test_dispatcher.py` (normalizer, anáfora, tocar musica, classify_risk,
+confirmação YELLOW/RED, bypass --yes, do --yes).
+
 ---
 
 **Próximo:** rodar `scripts/build.ps1 -Installer` até o fim (compilação onefile
 completa, ~20–40 min) e decidir D3 (certificado) e N6 (dry-run padrão em `do`).
-Etapa 8 de Blindagem (escopo a definir).

@@ -68,6 +68,12 @@ def _bootstrap() -> None:
     """Prepara encoding e sinks de log antes de qualquer comando."""
     _configure_stdout()
     setup_logger()
+    try:
+        from winbot.core.templates import install_default_templates
+
+        install_default_templates()
+    except Exception:
+        pass
 
 
 @app.command("version")

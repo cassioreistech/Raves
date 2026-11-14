@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -104,6 +105,17 @@ class SettingsWindow(QWidget):
         delete_btn.clicked.connect(self._on_delete_correction)
         layout.addWidget(delete_btn)
 
+        layout.addWidget(QLabel("Inicialização:"))
+        self.autostart_checkbox = QCheckBox("Iniciar WinBot automaticamente com o Windows")
+        try:
+            from winbot.core.autostart import is_enabled
+
+            self.autostart_checkbox.setChecked(is_enabled())
+        except Exception:
+            pass
+        self.autostart_checkbox.toggled.connect(self._on_autostart_toggled)
+        layout.addWidget(self.autostart_checkbox)
+
         layout.addStretch(1)
         return widget
 
@@ -128,6 +140,17 @@ class SettingsWindow(QWidget):
             self.corrections_list.addItem(f"[calibração] piso de ruído = {floor:.4f}")
         except Exception as exc:
             self.corrections_list.addItem(f"[erro] {exc}")
+
+    def _on_autostart_toggled(self, checked: bool) -> None:
+        try:
+            from winbot.core import autostart
+
+            if checked:
+                autostart.enable()
+            else:
+                autostart.disable()
+        except Exception as exc:
+            self.corrections_list.addItem(f"[erro autostart] {exc}")
 
     def _on_delete_correction(self) -> None:
         item = self.corrections_list.currentItem()
@@ -249,8 +272,11 @@ class SettingsWindow(QWidget):
         run_btn.clicked.connect(self._on_run_workflow)
         refresh_btn = QPushButton("Atualizar")
         refresh_btn.clicked.connect(self._refresh_workflows)
+        new_btn = QPushButton("+ Criar Novo Workflow")
+        new_btn.clicked.connect(self._on_new_workflow)
         btn_row.addWidget(run_btn)
         btn_row.addWidget(refresh_btn)
+        btn_row.addWidget(new_btn)
         layout.addLayout(btn_row)
 
         layout.addWidget(QLabel("Gatilhos reativos:"))
@@ -290,6 +316,47 @@ class SettingsWindow(QWidget):
                 ["winbot", "workflow", "run", name, "--apply"],
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
+        except Exception as exc:
+            self.workflows_list.addItem(f"[erro] {exc}")
+
+    def _on_new_workflow(self) -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextEdit, QVBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Novo Workflow")
+        dialog.resize(520, 400)
+        vlayout = QVBoxLayout(dialog)
+
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("nome_do_workflow")
+        vlayout.addWidget(QLabel("Nome:"))
+        vlayout.addWidget(name_edit)
+
+        text_edit = QTextEdit()
+        text_edit.setPlainText(
+            "name: Novo Workflow\ndescription: criado pela UI\ncaminho:\nsteps:\n"
+            "  - name: passo 1\n    action: wait\n    params: { seconds: 1 }\n"
+        )
+        vlayout.addWidget(text_edit)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        vlayout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        name = name_edit.text().strip() or "novo_workflow"
+        content = text_edit.toPlainText()
+        try:
+            from winbot.commands.workflow import WORKFLOWS_DIR
+
+            WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
+            path = WORKFLOWS_DIR / f"{name}.yaml"
+            path.write_text(content, encoding="utf-8")
+            self._refresh_workflows()
         except Exception as exc:
             self.workflows_list.addItem(f"[erro] {exc}")
 
