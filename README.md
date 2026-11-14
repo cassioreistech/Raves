@@ -167,6 +167,28 @@ a correção é instantânea na próxima vez. `redact_command` mascara payloads 
 > áudio ao vivo via `sounddevice` depende de um microfone padrão configurado.
 > ASR/TTS real fica para uma etapa futura — nada aqui usa nuvem/API.
 
+## Sprint A · Visão/OCR Nativo + Gravador Inteligente
+
+Motor de visão (`engine/vision.py`) usa WinRT OCR nativo do Windows 10/11
+(`Windows.Media.Ocr`) com fallback para `rapidocr-onnxruntime`. Captura a janela
+ativa por padrão (3x mais rápido, menos RAM) ou uma região.
+
+```powershell
+.\.venv\Scripts\winbot.exe do "ler tela"
+.\.venv\Scripts\winbot.exe do "clicar no texto OK"
+.\.venv\Scripts\winbot.exe flow record minha_rotina   # grava cliques -> YAML
+```
+
+`engine/recorder.py` — `WorkflowRecorder` monitora cliques do mouse (pynput) e,
+no exato momento de cada clique esquerdo, consulta o controle UIA sob o cursor
+para gerar um passo semântico (`uia_click`), caindo para `gui_click` apenas se
+não houver controle acessível. ESC/Ctrl+C encerra e salva o YAML em
+`~/.winbot/workflows/<nome>.yaml`.
+
+Ação de workflow nova: `ocr_click` (com `text`). `ler tela`/`o que esta escrito
+na tela` lê a janela ativa via OCR e exibe/fala um resumo (truncado a 500
+chars). `clicar no texto <texto>` executa `vision.click_text`.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
 Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).

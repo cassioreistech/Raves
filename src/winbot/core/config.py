@@ -135,6 +135,7 @@ WorkflowAction = Literal[
     "uia_click",
     "uia_fill",
     "wait_window",
+    "ocr_click",
 ]
 MAX_WAIT_SECONDS = 60.0
 
@@ -187,6 +188,8 @@ class WorkflowStep(BaseModel):
             timeout = self.params.get("timeout", 15)
             if not isinstance(timeout, (int, float)) or not 1 <= timeout <= 120:
                 raise ValueError("params.timeout deve estar entre 1 e 120")
+        if self.action == "ocr_click" and not self.params.get("text"):
+            raise ValueError("ação 'ocr_click' exige params.text")
         return self
 
 

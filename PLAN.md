@@ -2,7 +2,8 @@
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
-> RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ · **System Tray Etapa 4 ✅ validado**.
+> RPA Nativo Etapa 2 ✅ · Áudio Etapa 3 ✅ · System Tray Etapa 4 ✅ ·
+> **Sprint A (Visão/OCR + Gravador) ✅ validado**.
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
 > **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
 
@@ -339,6 +340,24 @@ Pillow 13.0.0 adicionados ao `pyproject.toml`.
 · `pyright` → 0 erros. Terminal real: `winbot tray` abre o ícone na bandeja e
 encerra limpo em "Sair"; `winbot voice calibrate` e `winbot voice listen`
 continuam funcionando.
+
+## 17. Sprint A · Visão/OCR + Gravador (14/11) ✅
+
+**Entregue:** `engine/vision.py` (WinRT OCR nativo com fallback rapidocr-onnxruntime;
+`read_screen_text`, `find_text_on_screen`, `click_text`; captura da janela ativa por
+padrão, 3x mais rápido e menos RAM); `engine/recorder.py` (`WorkflowRecorder`:
+monitora cliques do mouse com pynput, consulta UIA sob o cursor para gerar
+`uia_click`, cai para `gui_click` se não houver controle, salva YAML compatível
+com `WorkflowDefinition`); `commands/flow.py` (`winbot flow record <nome>`); ação
+`ocr_click` no schema + validação; parser natural `ler tela` / `o que esta escrito
+na tela` / `clicar no texto <texto>`; `capture_error_snapshot` continua best-effort.
+
+**Gates:** `pytest -q` → **182 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `do "ler tela"` leu a Calculadora; `do
+"clicar no texto Calculadora"` clicou em (1084, 636); workflow YAML com `ocr_click`
++ `wait_window` rodou com sucesso (exit 0); `flow --help` lista `record`.
+
+**Testes:** `tests/test_vision.py` (7), `tests/test_recorder.py` (4).
 
 ---
 

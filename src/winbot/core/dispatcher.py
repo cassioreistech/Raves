@@ -24,7 +24,7 @@ from winbot.core.diagnostics import capture_error_snapshot
 from winbot.core.learner import BehaviorLearner
 from winbot.core.logger import audit, logger
 from winbot.core.security import SecurityViolationError
-from winbot.engine import gui, shell, uia_engine, windows_api
+from winbot.engine import gui, shell, uia_engine, vision, windows_api
 
 __all__ = [
     "APP_ALIASES",
@@ -190,6 +190,14 @@ def execute_step(step: WorkflowStep, *, policy: SecuritySettings, dry_run: bool)
                 outcome = StepOutcome(
                     ok, "Janela pronta" if ok else "Janela nao encontrada no timeout"
                 )
+
+        elif action == "ocr_click":
+            text = str(params.get("text", ""))
+            if dry_run:
+                outcome = StepOutcome(True, "simulado")
+            else:
+                ok, message = vision.click_text(text)
+                outcome = StepOutcome(ok, message)
 
         else:
             outcome = StepOutcome(False, f"Acao nao suportada: {action}")
@@ -378,6 +386,16 @@ def _parse_segment(segment: str) -> list[CommandSpec]:
                     action="uia_click",
                     params={"window": "", "control": control},
                 ),
+            )
+        ]
+
+    match = re.fullmatch(r"clicar\s+no\s+texto\s+(.+)", text, _FLAGS)
+    if match:
+        target = match.group(1).strip()
+        return [
+            CommandSpec(
+                f"clicar no texto '{target}'",
+                WorkflowStep(name="ocr_click", action="ocr_click", params={"text": target}),
             )
         ]
 
@@ -652,6 +670,14 @@ def execute_natural_command(
 
     # Insight primeiro: esses prefixos tambem estao em MEMORY_PREFIXES (anti-loop),
     # mas precisam cair no learner, nao no repetir/historico.
+    lowered = raw.strip().lower()
+    if lowered in {"ler tela", "o que esta escrito na tela", "o que está escrito na tela"}:
+        text = vision.read_screen_text()
+        summary = text.strip()[:500] or "(nenhum texto detectado)"
+        result = [DispatchResult("ler tela", True, summary)]
+        _log(raw, result)
+        return result
+
     if database.is_insight_command(raw):
         return _handle_insights(raw)
     if any(raw.lower().startswith(p) for p in database.VOICE_TRAIN_PREFIXES):
