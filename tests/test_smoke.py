@@ -1,5 +1,5 @@
-from winbot import __version__
-from winbot.main import app
+from raves import __version__
+from raves.main import app
 
 
 def test_pacote_importa() -> None:
@@ -31,10 +31,10 @@ def test_sys_status(runner, mocker) -> None:
         percent = 55.0
         free = 100 * 1024**3
 
-    mocker.patch("winbot.commands.system.psutil.cpu_percent", return_value=12.5)
-    mocker.patch("winbot.commands.system.psutil.cpu_count", return_value=8)
-    mocker.patch("winbot.commands.system.psutil.virtual_memory", return_value=_Mem())
-    mocker.patch("winbot.commands.system.psutil.disk_usage", return_value=_Disk())
+    mocker.patch("raves.commands.system.psutil.cpu_percent", return_value=12.5)
+    mocker.patch("raves.commands.system.psutil.cpu_count", return_value=8)
+    mocker.patch("raves.commands.system.psutil.virtual_memory", return_value=_Mem())
+    mocker.patch("raves.commands.system.psutil.disk_usage", return_value=_Disk())
 
     result = runner.invoke(app, ["sys", "status"])
     assert result.exit_code == 0

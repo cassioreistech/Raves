@@ -1,4 +1,4 @@
-from winbot.core import database
+from raves.core import database
 
 
 def test_init_cria_tabelas() -> None:

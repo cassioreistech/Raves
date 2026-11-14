@@ -3,9 +3,9 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from winbot.commands.workflow import _execute_step
-from winbot.core.config import SecuritySettings, WorkflowDefinition
-from winbot.main import app
+from raves.commands.workflow import _execute_step
+from raves.core.config import SecuritySettings, WorkflowDefinition
+from raves.main import app
 
 ROOT = Path(__file__).parents[1]
 EXAMPLE = ROOT / "examples" / "demo.workflow.yaml"
@@ -24,10 +24,10 @@ def test_exemplo_valida() -> None:
 
 
 def test_dry_run_nao_executa_nada(mocker) -> None:
-    proc = mocker.patch("winbot.engine.shell.subprocess.run")
-    popen = mocker.patch("winbot.engine.windows_api.subprocess.Popen")
-    enum = mocker.patch("winbot.engine.windows_api.win32gui.EnumWindows")
-    sleep = mocker.patch("winbot.core.dispatcher.time.sleep")
+    proc = mocker.patch("raves.engine.shell.subprocess.run")
+    popen = mocker.patch("raves.engine.windows_api.subprocess.Popen")
+    enum = mocker.patch("raves.engine.windows_api.win32gui.EnumWindows")
+    sleep = mocker.patch("raves.core.dispatcher.time.sleep")
 
     wf = _load(EXAMPLE)
     outcomes = [
@@ -43,8 +43,8 @@ def test_dry_run_nao_executa_nada(mocker) -> None:
 
 
 def test_acoes_gui_em_dry_run_nao_encostam_no_pyautogui(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.screen_size", return_value=(1920, 1080))
-    pag = mocker.patch("winbot.engine.gui._pyautogui")
+    mocker.patch("raves.engine.windows_api.screen_size", return_value=(1920, 1080))
+    pag = mocker.patch("raves.engine.gui._pyautogui")
     wf = _load(RPA_EXAMPLE)
     outcomes = [_execute_step(step, policy=SecuritySettings(), dry_run=True) for step in wf.steps]
     assert all(item.ok for item in outcomes)
@@ -52,7 +52,7 @@ def test_acoes_gui_em_dry_run_nao_encostam_no_pyautogui(mocker) -> None:
 
 
 def test_hotkey_proibida_no_workflow_e_fail_closed() -> None:
-    from winbot.core.dispatcher import StepOutcome
+    from raves.core.dispatcher import StepOutcome
 
     wf = WorkflowDefinition.model_validate(
         {

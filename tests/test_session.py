@@ -1,4 +1,4 @@
-from winbot.core.session import SessionContext, get_session
+from raves.core.session import SessionContext, get_session
 
 
 def test_session_singleton_e_reset() -> None:

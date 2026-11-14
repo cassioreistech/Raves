@@ -1,4 +1,4 @@
-; WinBot - instalador Inno Setup 6 (Passo 4)
+; RAVES - instalador Inno Setup 6 (Passo 4)
 ;
 ; Compilado por:  .\scripts\build.ps1 -Installer
 ; Ou direto:     ISCC.exe /DMyAppVersion=0.1.0 installer.iss
@@ -11,12 +11,12 @@
   #define MyAppVersion "0.1.0"
 #endif
 #ifndef SourceDir
-  #define SourceDir "dist\winbot"
+  #define SourceDir "dist\raves"
 #endif
 
-#define MyAppName "WinBot"
+#define MyAppName "RAVES"
 #define MyAppPublisher "Cassio Reis Tech"
-#define MyAppExeName "winbot.exe"
+#define MyAppExeName "raves.exe"
 #define MyAppURL "https://github.com/cassioreistech/Raves"
 
 [Setup]
@@ -36,7 +36,7 @@ DisableProgramGroupPage=yes
 ; outra conta e o override de licenca cairia no perfil errado.
 PrivilegesRequired=lowest
 OutputDir=dist\installer
-OutputBaseFilename=WinBotSetup-{#MyAppVersion}
+OutputBaseFilename=RAVESSetup-{#MyAppVersion}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
@@ -52,13 +52,13 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "addtopath"; Description: "Adicionar WinBot ao PATH (recomendado)"; GroupDescription: "Integracao com o terminal:"; Flags: checkedonce
+Name: "addtopath"; Description: "Adicionar RAVES ao PATH (recomendado)"; GroupDescription: "Integracao com o terminal:"; Flags: checkedonce
 
 [Files]
 ; Payload do Nuitka: um unico .exe em --onefile, ou a pasta inteira em --standalone.
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 ; Liga o licenciamento apenas na distribuicao. Nunca sobrescreve config existente.
-Source: "installer\settings.distribution.yaml"; DestDir: "{localappdata}\WinBot"; DestName: "settings.yaml"; Flags: onlyifdoesntexist
+Source: "installer\settings.distribution.yaml"; DestDir: "{localappdata}\RAVES"; DestName: "settings.yaml"; Flags: onlyifdoesntexist
 
 [Registry]
 ; Duas entradas: uma para quando PATH ainda nao existe, outra para append seguro.
@@ -66,8 +66,8 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}'))
 
 [Icons]
-Name: "{group}\WinBot Console"; Filename: "{sys}\cmd.exe"; Parameters: "/K ""{app}\{#MyAppExeName}"" --help"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Abre um console com o WinBot pronto para uso"
-Name: "{group}\Desinstalar WinBot"; Filename: "{uninstallexe}"
+Name: "{group}\RAVES Console"; Filename: "{sys}\cmd.exe"; Parameters: "/K ""{app}\{#MyAppExeName}"" --help"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Abre um console com o RAVES pronto para uso"
+Name: "{group}\Desinstalar RAVES"; Filename: "{uninstallexe}"
 
 [Code]
 function PathValueExists(): Boolean;

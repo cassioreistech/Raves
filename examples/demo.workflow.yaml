@@ -1,5 +1,5 @@
 name: Diagnóstico inicial
-description: Rotina de exemplo no schema WinBot. Roda em dry-run; use --apply para executar.
+description: Rotina de exemplo no schema RAVES. Roda em dry-run; use --apply para executar.
 steps:
   - name: Listar temporários (somente leitura)
     action: powershell

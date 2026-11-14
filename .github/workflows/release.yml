@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
     env:
       # Secrets nao podem ser lidos diretamente em `if:`; usa-se env no job.
-      SIGN_PFX_B64: ${{ secrets.WINBOT_SIGN_PFX_BASE64 }}
+      SIGN_PFX_B64: ${{ secrets.RAVES_SIGN_PFX_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -67,16 +67,16 @@ jobs:
           )
           $iscc = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe nao encontrado apos instalar o Inno Setup" }
-          "WINBOT_ISCC=$iscc" >> $env:GITHUB_ENV
+          "RAVES_ISCC=$iscc" >> $env:GITHUB_ENV
 
       - name: Preparar certificado (opcional)
         if: env.SIGN_PFX_B64 != ''
         shell: pwsh
         run: |
-          $pfx = Join-Path $env:RUNNER_TEMP "winbot-sign.pfx"
+          $pfx = Join-Path $env:RUNNER_TEMP "raves-sign.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
-          "WINBOT_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
-          "WINBOT_SIGN_PASSWORD=${{ secrets.WINBOT_SIGN_PASSWORD }}" >> $env:GITHUB_ENV
+          "RAVES_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+          "RAVES_SIGN_PASSWORD=${{ secrets.RAVES_SIGN_PASSWORD }}" >> $env:GITHUB_ENV
 
       - name: Compilar .exe e instalador
         shell: pwsh
@@ -85,8 +85,8 @@ jobs:
       - name: Publicar artefato
         uses: actions/upload-artifact@v4
         with:
-          name: WinBot-${{ steps.ver.outputs.version }}
+          name: RAVES-${{ steps.ver.outputs.version }}
           path: |
             dist/installer/*.exe
-            dist/winbot/winbot.exe
+            dist/raves/raves.exe
           if-no-files-found: error

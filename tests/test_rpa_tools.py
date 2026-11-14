@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from winbot.main import app
+from raves.main import app
 
 
 def test_spy_sai_limpo_com_ctrl_c(mocker) -> None:
@@ -8,7 +8,7 @@ def test_spy_sai_limpo_com_ctrl_c(mocker) -> None:
     mocker.patch("pyautogui.pixel", return_value=(1, 2, 3))
     mocker.patch("win32gui.GetForegroundWindow", return_value=42)
     mocker.patch("win32gui.GetWindowText", return_value="Janela de teste")
-    live = mocker.patch("winbot.commands.rpa_tools.Live")
+    live = mocker.patch("raves.commands.rpa_tools.Live")
     live.return_value.__enter__.side_effect = KeyboardInterrupt
 
     result = CliRunner().invoke(app, ["rpa", "spy"])

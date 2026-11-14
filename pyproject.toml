@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "winbot"
+name = "raves"
 version = "0.1.0"
 description = "Automação e Orquestração Determinística para Windows"
 readme = "README.md"
@@ -45,13 +45,13 @@ dev = [
 ]
 
 [project.scripts]
-winbot = "winbot.main:app"
+raves = "raves.main:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-winbot = ["assets/*.yaml"]
+raves = ["assets/*.yaml"]
 
 [tool.ruff]
 line-length = 100

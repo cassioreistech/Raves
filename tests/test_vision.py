@@ -1,4 +1,4 @@
-from winbot.engine import vision
+from raves.engine import vision
 
 
 def test_read_screen_text_usa_ocr_unificado(mocker) -> None:

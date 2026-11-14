@@ -1,4 +1,4 @@
-# WinBot Core — Plano de Fundação e Arquitetura Comercial
+# RAVES Core — Plano de Fundação e Arquitetura Comercial
 
 > **Status:** Passos 1–3 ✅ · Passo 4 implementado (build `--onefile` completo ainda
 > não executado ponta a ponta) · `do`/`shell` ✅ · Blindagem Etapa 1 ✅ ·
@@ -6,17 +6,17 @@
 > quando o modelo está em cache) · System Tray Etapa 4 ✅ ·
 > Sprint A (Visão/OCR + Gravador) ✅ · Sprint B (Gatilhos + Cérebro Híbrido) ✅ ·
 > Blindagem Etapa 6 ✅ · Setup Ollama Zero-Atrito ✅ ·
-> Interface Visual Etapa 7 ✅ ·
-> **Integração Viva Etapa 8 ✅** (HUD+Voz+Input rápido, autostart, templates, risco 3 níveis, --yes).
+> Interface Visual Etapa 7 ✅ · Integração Viva Etapa 8 ✅ ·
+> **Voz Natural (masculina/feminina) ✅** (WinRT Maria/Daniel + Piper opcional).
 > **Alvo:** CLI de automação Windows, software comercial, entregue como binário.
-> **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `winbot` (ver N1).
+> **Nota:** o diretório no disco chama-se `Raves`; o produto/pacote é `raves` (ver N1).
 
 ## 1. Decisões tomadas
 
 | Item | Escolha | Justificativa |
 |---|---|---|
-| Produto | **WinBot** — CLI de automação Windows | D1 = CLI (Typer); D2 = shell + Win32 + GUI/RPA + rotinas YAML |
-| Pacote / distro | `src/winbot/` · `winbot` | Produto fechado, sem PyPI |
+| Produto | **RAVES** — CLI de automação Windows | D1 = CLI (Typer); D2 = shell + Win32 + GUI/RPA + rotinas YAML |
+| Pacote / distro | `src/raves/` · `raves` | Produto fechado, sem PyPI |
 | Gerenciador | **uv** (provedor do CPython isolado) + `pip install -e` | Máquina só tem 3.15; 3.12 instalado isolado |
 | Build backend | **setuptools>=68** | `packages.find where=["src"]`, mais testado com Nuitka |
 | Python alvo | **3.12** em `.python-version` | pywin32/Nuitka defasam em CPython novo; `>=3.11,<3.14` |
@@ -47,7 +47,7 @@ Raves/
 ├── scripts/
 │   ├── keygen.py                        # administrativo: init / issue
 │   ├── smoke_entry.py · smoke_build.ps1
-├── src/winbot/
+├── src/raves/
 │   ├── __init__.py · __main__.py · main.py
 │   ├── core/
 │   │   ├── config.py        # Settings + LicensingSettings + WorkflowStep/Definition
@@ -65,12 +65,12 @@ Raves/
 │   │   └── rpa_tools.py     # spy (rich.live)
 │   └── assets/settings.defaults.yaml   # empacotado via importlib.resources
 ├── tests/                   # 83 testes
-└── dist/winbot-0.1.0-py3-none-any.whl
+└── dist/raves-0.1.0-py3-none-any.whl
 ```
 
 ## 3. `pyproject.toml`
 
-- `[project.scripts] winbot = "winbot.main:app"`
+- `[project.scripts] raves = "raves.main:app"`
 - `[tool.setuptools.packages.find] where = ["src"]` · `package-data` inclui `assets/*.yaml`
 - `[tool.ruff] extend-exclude = ["build", "dist", "*.egg-info", ".venv"]`
 - `[tool.pyright] venvPath/venv = ".venv"`, `reportMissingModuleSource = "none"`
@@ -93,7 +93,7 @@ licenciamento como camada separada, segredos via Windows Credential Manager / DP
 | `commands/schedule.py` | Nome da tarefa por regex, `shell=False`, dry-run, aviso de execução sem terminal |
 | `dry_run` | Padrão em todas as ações; `--apply` + `security.allow_shell=true` |
 | Fail-closed | Step `BLOQUEADO` aborta **mesmo com `continue_on_error: true`** |
-| Auditoria | Append-only em `%LOCALAPPDATA%\WinBot\audit.log`, 90 dias |
+| Auditoria | Append-only em `%LOCALAPPDATA%\RAVES\audit.log`, 90 dias |
 
 **4.3 Licenciamento — limite honesto:** validar com chave pública embutida é
 **contornável por patch no binário**. Nuitka dificulta, mas a mitigação real é checar
@@ -116,10 +116,10 @@ ligar apenas no build de distribuição.
 - ✅ D1 CLI/Typer · ✅ D2 automação Windows — definidas.
 - **D3** — certificado de assinatura de código? Sem ele, SmartScreen alerta o cliente.
 - **D4** — auto-update ou instalador manual por versão?
-- **N1** — pasta no disco é `Raves`, produto é `winbot`. Renomear? (não fazer sem confirmação)
+- **N1** — pasta no disco é `Raves`, produto é `raves`. Renomear? (não fazer sem confirmação)
 - ✅ **N3** — escopo de `limpar temp` definido em `core/dispatcher.py`: só arquivos
   diretos de `%TEMP%`, sem recursão/diretórios/symlinks, ignora arquivos em uso.
-- **N4** — `winbot init` para materializar `settings.yaml`, `~/.winbot/workflows/` e instalar licença.
+- **N4** — `raves init` para materializar `settings.yaml`, `~/.raves/workflows/` e instalar licença.
 - ✅ **N5** — smoke revalidado: `.exe` de 14,5 MB executa e imprime os imports
   nativos. `--include-package=comtypes` é obrigatório e está no `build.ps1`.
 - **N6** — `do`/`shell` executam por padrão (exceção ao dry-run de `workflow run`);
@@ -140,20 +140,20 @@ ligar apenas no build de distribuição.
 - `Raves\Raves\` (cópia acidental do repo) causou `import file mismatch` no pytest;
   movido para `%TEMP%\opencode\` sem deletar.
 - Rich `Console()`/`Progress` não devem ser lintados em `build/lib` → `extend-exclude`.
-- src-layout exige `pip install -e .`; sem isso `import winbot` falha.
+- src-layout exige `pip install -e .`; sem isso `import raves` falha.
 - `--onefile` aumenta startup (extração em temp): medir antes de prometer UX.
 
 ## 8. Critérios de aceite do Passo 1 ✅
 
 `pip install -e` · pytest · ruff · pyright · `build --wheel` com assets ·
-`winbot --help` / `version` / `python -m winbot` · imports nativos · nenhum segredo no tree.
+`raves --help` / `version` / `python -m raves` · imports nativos · nenhum segredo no tree.
 
 ## 9. Registro de execução do Passo 1 ✅
 
 Só Python 3.15 → CPython **3.12.16** isolado via `uv`. `uv venv --seed` +
-`pip install -e ".[dev]"`. Ajustes: setuptools, `name="winbot"`, `>=3.11,<3.14`,
+`pip install -e ".[dev]"`. Ajustes: setuptools, `name="raves"`, `>=3.11,<3.14`,
 `typer` sem `[all]`, +loguru/psutil/pywinauto, `logger.py` sem side-effect no import,
-`%SYSTEMDRIVE%`, versão via `importlib.metadata`, defaults em `src/winbot/assets/`,
+`%SYSTEMDRIVE%`, versão via `importlib.metadata`, defaults em `src/raves/assets/`,
 `venvPath`/`venv` no pyright.
 
 ## 10. Registro de execução do Passo 2 ✅
@@ -165,7 +165,7 @@ dry-run → `dry_run=True` + `--apply`.
 
 **API adotada:** `SecurityViolationError`, `validate_shell_command()`,
 `CommandResult.success/return_code`, `WorkflowDefinition/WorkflowStep` com `params`,
-5 ações, `~/.winbot/workflows`, `workflow list`, `Progress` + `Panel`.
+5 ações, `~/.raves/workflows`, `workflow list`, `Progress` + `Panel`.
 
 **Achados de validação:** `UnicodeEncodeError` com `✔`/`✘` em cp1252 e `ruff` lintando
 `build/lib/**`. Ambos corrigidos. Gates: 58 passed, pyright 0 errors, wheel, demo em
@@ -195,8 +195,8 @@ emitida e verificada ponta a ponta: `LICENSED pro 2027-11-13`, HWID
 
 **Gates — todos verdes:** `pytest -q` → **83 passed** · `ruff check .` ·
 `ruff format --check .` · `pyright` → 0 errors · `build --wheel` → 17 módulos ·
-`winbot license` (TRIAL em dev) · `workflow run examples/rpa.workflow.yaml` (3 steps OK
-em DRY-RUN) · `schedule create/remove` (simulados) · `winbot workflow run
+`raves license` (TRIAL em dev) · `workflow run examples/rpa.workflow.yaml` (3 steps OK
+em DRY-RUN) · `schedule create/remove` (simulados) · `raves workflow run
 examples/bloqueado.workflow.yaml` → BLOQUEADO, exit 1.
 
 **Smoke Nuitka (achado importante):** a 1ª compilação gerou
@@ -205,18 +205,18 @@ examples/bloqueado.workflow.yaml` → BLOQUEADO, exit 1.
 `comtypes` gera wrappers COM via `importlib` em runtime, invisível à análise
 estática do Nuitka. Correção aplicada e publicada (`a230fb1`):
 `--include-package=comtypes --include-package=pywinauto`. **Revalidação concluída
-em 14/11**: `winbot native imports OK: TECH_ONE pyautogui pyperclip pywinauto
+em 14/11**: `raves native imports OK: TECH_ONE pyautogui pyperclip pywinauto
 win32com 50.0.2`, exit 0. O gate cumpriu seu papel: detectou o problema antes
 do Passo 4. (O wrapper de log com `*>&1` + `ErrorActionPreference=Stop` gerava
 `NativeCommandError` e abortava antes do `$LASTEXITCODE`; corrigido no script.)
 
 **Abertura do sistema:** bateria funcional completa no terminal real +
-janela visível com `winbot rpa spy` aberta (PID 23824, Ctrl+C para fechar).
+janela visível com `raves rpa spy` aberta (PID 23824, Ctrl+C para fechar).
 WezTerm não instalado → abertura via `Start-Process` com argv puro, sem shell.
 
 ## 12. Passo 4 + interface de pedidos (14/11)
 
-**Passo 4 (implementado, build completo pendente):** `scripts/winbot_entry.py`
+**Passo 4 (implementado, build completo pendente):** `scripts/raves_entry.py`
 (entry point Nuitka), `scripts/build.ps1` (onefile/standalone, validação do `.exe`,
 assinatura opcional, `-Installer`), `installer.iss` (Inno Setup 6, instalação por
 usuário com `PrivilegesRequired=lowest` para manter PATH/HKCU e `settings.yaml`
@@ -231,13 +231,13 @@ fonte única de execução — `commands/workflow.py` passou a delegar para
 determinístico com 8 verbos, encadeamento por ` e ` com lookahead de verbo,
 `digitar ... com enter`, aliases UWP para `fechar calc`, `clean_temp` de escopo
 estreito. `main.py` ganhou `do` (ícones ✔/✘ via Rich) e `shell`
-(`Prompt.ask("winbot >")`).
+(`Prompt.ask("raves >")`).
 
 **Gates:** `pytest -q` → **100 passed** · `ruff check .` · `ruff format --check .`
 · `pyright` → 0 erros · terminal real:
 
 ```
-> winbot do "abrir calc e esperar 1 segundos e fechar calc"
+> raves do "abrir calc e esperar 1 segundos e fechar calc"
   ✔ abrir calc.exe App iniciado: calc.exe
   ✔ esperar 1 segundo(s) Aguardou 1.0s
   ✔ fechar calc.exe 2 instancia(s) encerrada(s)
@@ -249,7 +249,7 @@ pipe `abrir calc` + `sair` → ✔ e encerra. `do --dry-run` não dispara efeito
 
 ## 13. Blindagem · Etapa 1 (14/11) ✅
 
-**Entregue:** `core/database.py` (SQLite em `~/.winbot/winbot.db`, WAL +
+**Entregue:** `core/database.py` (SQLite em `~/.raves/raves.db`, WAL +
 `synchronous=NORMAL` em toda conexão, tabelas `installed_apps` / `command_history`,
 `upsert_apps` / `find_app` / `log_command` / `get_last_successful_command` /
 `get_recent_history` + `count_apps` / `get_apps` / `is_memory_command`);
@@ -275,8 +275,8 @@ mascarada. `get_last_successful_command` filtra comandos de memória (anti-loop)
 journal_mode` = `wal`; `do "abrir chrome" --dry-run` resolve o `.exe` do registro;
 `repetir` reexecuta o ciclo do calc sem loop; `historico` mostra 5 linhas.
 
-**Testes:** `tests/conftest.py` ganhou fixture `autouse` com `WINBOT_DB_PATH`
-isolado em `tmp_path` + `WINBOT_SKIP_APP_INDEX=1`, para nenhum teste tocar no
+**Testes:** `tests/conftest.py` ganhou fixture `autouse` com `RAVES_DB_PATH`
+isolado em `tmp_path` + `RAVES_SKIP_APP_INDEX=1`, para nenhum teste tocar no
 banco real nem varrer o Windows de verdade.
 
 ## 14. RPA Nativo · Etapa 2 (14/11) ✅
@@ -285,9 +285,9 @@ banco real nem varrer o Windows de verdade.
 `click_control` com `invoke()`+fallback `click_input()`, `fill_field` com
 `set_edit_text()`+fallback clipboard, `list_window_controls`, `foreground_window_title`);
 `core/diagnostics.py` (`capture_error_snapshot` → screenshot + `.txt` em
-`~/.winbot/crash_reports`); ações `uia_click`, `uia_fill`, `wait_window` no
+`~/.raves/crash_reports`); ações `uia_click`, `uia_fill`, `wait_window` no
 schema `WorkflowAction` (com validação) e em `_execute_step`; captura automática
-de snapshot em toda falha de etapa; comando `winbot rpa inspect <titulo>` com
+de snapshot em toda falha de etapa; comando `raves rpa inspect <titulo>` com
 tabela Rich; parser natural `clicar em <ctrl> na janela <janela>`, `clicar no
 botao <ctrl>` (janela ativa) e `esperar janela <titulo>`.
 
@@ -334,15 +334,15 @@ etapa futura. Nada usa nuvem/API.
 
 ## 16. System Tray · Etapa 4 (14/11) ✅
 
-**Entregue:** `commands/tray.py` (`winbot tray`), ícone 64×64 gerado em memória
+**Entregue:** `commands/tray.py` (`raves tray`), ícone 64×64 gerado em memória
 (Pillow, sem arquivo externo), menu com Ativar/Pausar Voz, Abrir Shell
 (`CREATE_NEW_CONSOLE`, sem `shell=True`), Executar Workflow (submenu dinâmico de
-`~/.winbot/workflows`), Sair. Observador sobe em background; `pystray` 0.19.5 +
+`~/.raves/workflows`), Sair. Observador sobe em background; `pystray` 0.19.5 +
 Pillow 13.0.0 adicionados ao `pyproject.toml`.
 
 **Gates:** `pytest -q` → **171 passed** · `ruff check .` · `ruff format --check .`
-· `pyright` → 0 erros. Terminal real: `winbot tray` abre o ícone na bandeja e
-encerra limpo em "Sair"; `winbot voice calibrate` e `winbot voice listen`
+· `pyright` → 0 erros. Terminal real: `raves tray` abre o ícone na bandeja e
+encerra limpo em "Sair"; `raves voice calibrate` e `raves voice listen`
 continuam funcionando.
 
 ## 17. Sprint A · Visão/OCR + Gravador (14/11) ✅
@@ -352,7 +352,7 @@ continuam funcionando.
 padrão, 3x mais rápido e menos RAM); `engine/recorder.py` (`WorkflowRecorder`:
 monitora cliques do mouse com pynput, consulta UIA sob o cursor para gerar
 `uia_click`, cai para `gui_click` se não houver controle, salva YAML compatível
-com `WorkflowDefinition`); `commands/flow.py` (`winbot flow record <nome>`); ação
+com `WorkflowDefinition`); `commands/flow.py` (`raves flow record <nome>`); ação
 `ocr_click` no schema + validação; parser natural `ler tela` / `o que esta escrito
 na tela` / `clicar no texto <texto>`; `capture_error_snapshot` continua best-effort.
 
@@ -367,12 +367,12 @@ na tela` / `clicar no texto <texto>`; `capture_error_snapshot` continua best-eff
 
 **Entregue:** `engine/triggers.py` (TriggerManager + TriggerRule Pydantic, eventos
 `file_created` via watchdog com debounce 1,5s e `window_opened` via thread única de
-polling 2s, persistência em `~/.winbot/triggers.yaml`); `commands/triggers_cmd.py`
+polling 2s, persistência em `~/.raves/triggers.yaml`); `commands/triggers_cmd.py`
 (`list`/`add`/`remove`/`watch`); `ai/local_brain.py` (LocalBrain, is_available com
 cache 60s e timeout 0,3s, ask via urllib com keep_alive "2m", system_prompt com
 interesses/comandos/clipboard, detecção `ACTION:`); roteador em cascata no
 dispatcher (determinístico → memória → LocalBrain → fallback amigável);
-integração do TriggerManager no `winbot tray`.
+integração do TriggerManager no `raves tray`.
 
 **Gates:** `pytest -q` → **197 passed** · `ruff check .` · `ruff format --check .`
 · `pyright` → 0 erros. Terminal real: `trigger add` + `trigger watch` disparou
@@ -399,7 +399,7 @@ com busca no YouTube) e `preparar meu ambiente`/`modo trabalho` (rotina de maior
 confiança para o hour_bucket atual); anáforas `fecha ele`/`fechar isso`/`fechar janela`
 resolvidas via contexto local que acompanha a cadeia (parse_instruction rastreia
 local_target/local_window); `digitar`/`clicar no botao` focam a janela recente
-automaticamente (foco não-fatal); `winbot do` ganhou `--yes`/`-y`; `shell` e
+automaticamente (foco não-fatal); `raves do` ganhou `--yes`/`-y`; `shell` e
 `voice listen` pedem confirmação [s/N] (voice: pergunta em voz e escuta
 sim/pode/confirmo vs não/cancela).
 
@@ -419,12 +419,12 @@ YELLOW/RED, bypass --yes, do --yes).
 `ensure_server_running()` (localiza `ollama.exe` via PATH ou
 `%LOCALAPPDATA%\Programs\Ollama`, sobe `ollama serve` com
 `CREATE_NO_WINDOW` + `OLLAMA_MAX_LOADED_MODELS=1` + `OLLAMA_NUM_PARALLEL=1`,
-aguarda até 3s), `shutdown_if_managed()` (encerra só se o WinBot subiu),
+aguarda até 3s), `shutdown_if_managed()` (encerra só se o RAVES subiu),
 `keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140`, `temperature: 0.3`.
 `commands/ai_cmd.py`: `ai status`, `ai setup [--lite]` (winget silencioso +
 `ollama pull qwen2.5:1.5b`/`qwen2.5:0.5b` com feedback Rich, persiste modelo em
 `settings.yaml`), `ai unload` (keep_alive=0), `ai shutdown`. atexit registra
-shutdown. Integrado ao `winbot tray` (Sair encerra o serve gerenciado).
+shutdown. Integrado ao `raves tray` (Sair encerra o serve gerenciado).
 
 **Gates:** `pytest -q` → **208 passed** · `ruff check .` · `ruff format --check .`
 · `pyright` → 0 erros. Terminal real: `ai status` mostra "Ollama não
@@ -433,11 +433,11 @@ graciosamente; `ai --help` lista status/setup/unload/shutdown.
 
 ## 21. Interface Visual · Etapa 7 (14/11) ✅
 
-**Entregue:** `ui/state_bridge.py` (StateBridge com sinais state_changed/audio_level_changed/show_hud/hide_hud/open_settings, estados UiState); `ui/hud_overlay.py` (QWidget frameless, always-on-top, fundo transparente, arrastável, 3 anéis assimétricos com cores por estado, painel glassmorphism com auto-hide 4s, atalho global Ctrl+Alt+Space via pynput em thread daemon); `ui/settings_window.py` (Dark HUD QSS, 4 abas: Voz & Áudio, Cérebro Local, Workflows & Gatilhos, Perfil & Licença); `commands/tray.py` reescrito (loop Qt unificado, QSystemTrayIcon nativo, menu, HUD, atalho global, shutdown); `main.py` ganhou `winbot ui`.
+**Entregue:** `ui/state_bridge.py` (StateBridge com sinais state_changed/audio_level_changed/show_hud/hide_hud/open_settings, estados UiState); `ui/hud_overlay.py` (QWidget frameless, always-on-top, fundo transparente, arrastável, 3 anéis assimétricos com cores por estado, painel glassmorphism com auto-hide 4s, atalho global Ctrl+Alt+Space via pynput em thread daemon); `ui/settings_window.py` (Dark HUD QSS, 4 abas: Voz & Áudio, Cérebro Local, Workflows & Gatilhos, Perfil & Licença); `commands/tray.py` reescrito (loop Qt unificado, QSystemTrayIcon nativo, menu, HUD, atalho global, shutdown); `main.py` ganhou `raves ui`.
 
 **Gates:** `pytest -q` → **219 passed** · `ruff check .` · `ruff format --check .`
-· `pyright` → 0 erros. Terminal real: `winbot ui` abre a Central sem crash;
-`winbot tray` abre o ícone na bandeja e encerra limpo; HUD renderiza em offscreen.
+· `pyright` → 0 erros. Terminal real: `raves ui` abre a Central sem crash;
+`raves tray` abre o ícone na bandeja e encerra limpo; HUD renderiza em offscreen.
 
 **Testes:** `tests/test_ui_state_bridge.py` (5), `tests/test_ui_hud.py` (3),
 `tests/test_ui_settings.py` (3).
@@ -486,11 +486,40 @@ workaround para processos destacados.
 · `pyright` → 0 erros. Terminal real: normalizer `por favor abrir calc agora` →
 `abrir calc`; anáfora `abrir notepad e digitar ola mundo e fechar isso --yes` →
 4 ações OK; `limpar temp` RED com prompt [s/N]; `--yes` bypassa; `tocar musica`
-abre player indexado; `winbot ui` e `winbot tray` estáveis.
+abre player indexado; `raves ui` e `raves tray` estáveis.
 
 **Testes:** `tests/test_session.py` (2), `tests/test_autostart.py` (2),
 `tests/test_templates.py` (2), `tests/test_ui_hud.py` (5), novos casos em
 `test_dispatcher.py`.
+
+**Adendo (14/11):** apresentação inicial em áudio implementada — ao iniciar
+`raves shell`, `raves voice listen` ou `raves tray`, o assistente fala a
+saudação por horário ("Bom dia"/"Boa tarde"/"Boa noite") + "Estou à sua
+disposição. Serei seu novo agente e amigo." via pyttsx3 (best-effort, em
+thread daemon, não bloqueia). Função `build_intro_greeting()` +
+`speak_text()` em `commands/_interactive.py`. Testado: shell exibiu "Boa tarde!
+Estou à sua disposição. Serei seu novo agente e amigo.".
+
+## 24. Voz Natural (Masculina/Feminina) (14/11) ✅
+
+**Entregue:** `engine/tts.py` — `TTSEngine` com prioridade Piper (neural, pt-BR
+masculino) → WinRT SpeechSynthesis (Microsoft Daniel masculino / Microsoft Maria
+feminina, OneCore, offline) → pyttsx3 (SAPI5) como fallback final. Barge-in
+cooperativo via `winsound.PlaySound` + `SND_PURGE`. `get_gender()`/`set_gender()`
+persistem em `voice_profile.tts_gender`. `speak_text()` em `_interactive.py`
+atualizado para usar `TTSEngine`. `commands/voice.py` ganhou `set-voice`, `test`
+e `setup-tts`. `settings_window.py` ganhou seletor de voz do TTS na aba Voz &
+Áudio. `pyproject.toml`: `winrt-Windows.Media.SpeechSynthesis`, `piper-tts`.
+
+**Gates:** `pytest -q` → **225 passed** · `ruff check .` · `ruff format --check .`
+· `pyright` → 0 erros. Terminal real: `voice set-voice masculina/feminina` persiste
+e `voice test` fala com a voz correta (WinRT Daniel/Maria). Ambas as vozes
+validadas em áudio real.
+
+**Decisão honesta registrada:** offline, o pt-BR feminino só existe via WinRT
+Microsoft Maria (OneCore, qualidade boa mas não neural). O pt-BR masculino tem
+opção neural extra via Piper (faber) após `voice setup-tts`. Não há voz feminina
+neural pt-BR disponível offline nas bibliotecas gratuitas atuais.
 
 ---
 

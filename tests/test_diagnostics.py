@@ -1,4 +1,4 @@
-from winbot.core import diagnostics
+from raves.core import diagnostics
 
 
 def test_capture_error_snapshot_grava_txt_e_tenta_screenshot(tmp_path, mocker) -> None:

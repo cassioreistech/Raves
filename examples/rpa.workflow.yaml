@@ -12,7 +12,7 @@ steps:
   - name: Digitar via clipboard
     action: gui_type
     params:
-      text: "Ola, WinBot!"
+      text: "Ola, RAVES!"
   - name: Salvar com atalho
     action: gui_hotkey
     params:

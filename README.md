@@ -1,4 +1,4 @@
-# WinBot Core
+# RAVES Core
 
 CLI de automação e orquestração determinística para Windows.
 
@@ -23,32 +23,32 @@ python -m uv venv --python 3.12 --seed .venv
 ## Comandos
 
 ```powershell
-.\.venv\Scripts\winbot.exe --help
-.\.venv\Scripts\winbot.exe sys status
-.\.venv\Scripts\winbot.exe version
-.\.venv\Scripts\winbot.exe license              # HWID + status (offline)
+.\.venv\Scripts\raves.exe --help
+.\.venv\Scripts\raves.exe sys status
+.\.venv\Scripts\raves.exe version
+.\.venv\Scripts\raves.exe license              # HWID + status (offline)
 
 # Workflows — DRY-RUN é o padrão, nada é executado
-.\.venv\Scripts\winbot.exe workflow run examples/demo.workflow.yaml
-.\.venv\Scripts\winbot.exe workflow run examples/rpa.workflow.yaml
-.\.venv\Scripts\winbot.exe workflow list
+.\.venv\Scripts\raves.exe workflow run examples/demo.workflow.yaml
+.\.venv\Scripts\raves.exe workflow run examples/rpa.workflow.yaml
+.\.venv\Scripts\raves.exe workflow list
 
 # Prova da trava de segurança (deve sair com código 1)
-.\.venv\Scripts\winbot.exe workflow run examples/bloqueado.workflow.yaml
+.\.venv\Scripts\raves.exe workflow run examples/bloqueado.workflow.yaml
 
 # Agendamento (DRY-RUN por padrão; --apply cria a tarefa)
-.\.venv\Scripts\winbot.exe schedule create demo examples/demo.workflow.yaml --at 09:00
-.\.venv\Scripts\winbot.exe schedule remove demo
+.\.venv\Scripts\raves.exe schedule create demo examples/demo.workflow.yaml --at 09:00
+.\.venv\Scripts\raves.exe schedule remove demo
 
 # Inspetor RPA interativo (Ctrl+C para sair)
-.\.venv\Scripts\winbot.exe rpa spy
+.\.venv\Scripts\raves.exe rpa spy
 
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check .
 ```
 
 Execução real exige `--apply` **e** `security.allow_shell=true` em
-`%LOCALAPPDATA%\WinBot\settings.yaml`.
+`%LOCALAPPDATA%\RAVES\settings.yaml`.
 
 ## Pedidos em linguagem natural (`do` / `shell`)
 
@@ -57,9 +57,9 @@ do engine. A cadeia usa ` e ` como separador, mas só quebra quando depois dele 
 um verbo conhecido — `digitar João e Maria` continua sendo um único texto.
 
 ```powershell
-.\.venv\Scripts\winbot.exe do "abrir calc e esperar 1 segundos e fechar calc"
-.\.venv\Scripts\winbot.exe do "digitar Olá com enter e atalho ctrl+v" --dry-run
-.\.venv\Scripts\winbot.exe shell          # loop até 'sair' / 'exit' / Ctrl+C
+.\.venv\Scripts\raves.exe do "abrir calc e esperar 1 segundos e fechar calc"
+.\.venv\Scripts\raves.exe do "digitar Olá com enter e atalho ctrl+v" --dry-run
+.\.venv\Scripts\raves.exe shell          # loop até 'sair' / 'exit' / Ctrl+C
 ```
 
 | Pedido | Ação |
@@ -96,15 +96,15 @@ redimensionada/movida e em monitores com escalas DPI diferentes. Tudo com
 retentativas (`tenacity`) e diagnóstico automático em falha.
 
 ```powershell
-.\.venv\Scripts\winbot.exe rpa inspect Calculadora --depth 8
-.\.venv\Scripts\winbot.exe do "clicar em Cinco na janela Calculadora"
-.\.venv\Scripts\winbot.exe do "focar Calculadora e clicar no botao Dois"
-.\.venv\Scripts\winbot.exe do "esperar janela Calculadora"
+.\.venv\Scripts\raves.exe rpa inspect Calculadora --depth 8
+.\.venv\Scripts\raves.exe do "clicar em Cinco na janela Calculadora"
+.\.venv\Scripts\raves.exe do "focar Calculadora e clicar no botao Dois"
+.\.venv\Scripts\raves.exe do "esperar janela Calculadora"
 ```
 
 Ações de workflow (schema validado): `uia_click`, `uia_fill`, `wait_window`.
 Quando uma etapa falha, `core/diagnostics.py` grava screenshot + `.txt` em
-`~/.winbot/crash_reports` (100% local; screenshot pode falhar em sessão RDP).
+`~/.raves/crash_reports` (100% local; screenshot pode falhar em sessão RDP).
 
 Motor `engine/uia_engine.py`:
 - `wait_for_window(title, timeout=15)` — tenacity (0.5s, até timeout)
@@ -113,18 +113,18 @@ Motor `engine/uia_engine.py`:
 - `fill_field(window, field, text, press_enter=False)` — `set_edit_text()` com
   fallback clipboard (acentos PT-BR)
 - `list_window_controls(window, max_depth=3)` — tabela Rich via
-  `winbot rpa inspect`
+  `raves rpa inspect`
 - `foreground_window_title()`
 
 ## System Tray · Etapa 4 (execução em segundo plano)
 
 ```powershell
-.\.venv\Scripts\winbot.exe tray
+.\.venv\Scripts\raves.exe tray
 ```
 
-Roda o WinBot discretamente ao lado do relógio do Windows (ícone gerado em
+Roda o RAVES discretamente ao lado do relógio do Windows (ícone gerado em
 memória, sem arquivo externo). Menu: **Ativar/Pausar Voz**, **Abrir Shell**,
-**Executar Workflow** (submenu com os YAMLs de `~/.winbot/workflows`) e **Sair**.
+**Executar Workflow** (submenu com os YAMLs de `~/.raves/workflows`) e **Sair**.
 O observador de contexto sobe em background; `CREATE_NEW_CONSOLE` abre o shell em
 janela separada sem `shell=True`.
 
@@ -133,11 +133,11 @@ janela separada sem `shell=True`.
 Pipeline de voz 100% offline. Nenhuma rede, nenhum modelo em nuvem.
 
 ```powershell
-.\.venv\Scripts\winbot.exe voice calibrate
-.\.venv\Scripts\winbot.exe voice listen
-.\.venv\Scripts\winbot.exe do "quando eu disser crôme entenda chrome"
-.\.venv\Scripts\winbot.exe do "aprender palavra vé éssi code"
-.\.venv\Scripts\winbot.exe do "memorizar termo uatsap"
+.\.venv\Scripts\raves.exe voice calibrate
+.\.venv\Scripts\raves.exe voice listen
+.\.venv\Scripts\raves.exe do "quando eu disser crôme entenda chrome"
+.\.venv\Scripts\raves.exe do "aprender palavra vé éssi code"
+.\.venv\Scripts\raves.exe do "memorizar termo uatsap"
 ```
 
 Camadas (`engine/audio_pipeline.py` + `engine/voice.py`):
@@ -153,7 +153,7 @@ Camadas (`engine/audio_pipeline.py` + `engine/voice.py`):
 - Aprendizado pós-execução: transcrição levemente distorcida + comando executado
   com sucesso → par gravado em `speech_corrections` (fuzzy match ≥ 0,75)
 
-Banco (`~/.winbot/winbot.db`):
+Banco (`~/.raves/raves.db`):
 - `speech_corrections(heard_phrase PK, mapped_phrase, hits, updated_at)`
 - `voice_profile(key PK, value)`
 
@@ -176,16 +176,16 @@ Motor de visão (`engine/vision.py`) usa WinRT OCR nativo do Windows 10/11
 ativa por padrão (3x mais rápido, menos RAM) ou uma região.
 
 ```powershell
-.\.venv\Scripts\winbot.exe do "ler tela"
-.\.venv\Scripts\winbot.exe do "clicar no texto OK"
-.\.venv\Scripts\winbot.exe flow record minha_rotina   # grava cliques -> YAML
+.\.venv\Scripts\raves.exe do "ler tela"
+.\.venv\Scripts\raves.exe do "clicar no texto OK"
+.\.venv\Scripts\raves.exe flow record minha_rotina   # grava cliques -> YAML
 ```
 
 `engine/recorder.py` — `WorkflowRecorder` monitora cliques do mouse (pynput) e,
 no exato momento de cada clique esquerdo, consulta o controle UIA sob o cursor
 para gerar um passo semântico (`uia_click`), caindo para `gui_click` apenas se
 não houver controle acessível. ESC/Ctrl+C encerra e salva o YAML em
-`~/.winbot/workflows/<nome>.yaml`.
+`~/.raves/workflows/<nome>.yaml`.
 
 Ação de workflow nova: `ocr_click` (com `text`). `ler tela`/`o que esta escrito
 na tela` lê a janela ativa via OCR e exibe/fala um resumo (truncado a 500
@@ -196,15 +196,15 @@ chars). `clicar no texto <texto>` executa `vision.click_text`.
 Gatilhos event-driven em ~0% CPU (sem polling):
 
 ```powershell
-.\.venv\Scripts\winbot.exe trigger list
-.\.venv\Scripts\winbot.exe trigger add --name pdf_novo --event file_created --path "$HOME\Downloads" --ext .pdf --run organizar_pdfs
-.\.venv\Scripts\winbot.exe trigger add --name calc_abriu --event window_opened --window Calculadora --run "focar Calculadora"
-.\.venv\Scripts\winbot.exe trigger watch       # Ctrl+C encerra
+.\.venv\Scripts\raves.exe trigger list
+.\.venv\Scripts\raves.exe trigger add --name pdf_novo --event file_created --path "$HOME\Downloads" --ext .pdf --run organizar_pdfs
+.\.venv\Scripts\raves.exe trigger add --name calc_abriu --event window_opened --window Calculadora --run "focar Calculadora"
+.\.venv\Scripts\raves.exe trigger watch       # Ctrl+C encerra
 ```
 
 `file_created` usa `watchdog` (ReadDirectoryChangesW nativo) com debounce de 1,5s
 (para o download terminar). `window_opened` reusa uma única thread de polling de
-baixa frequência (2s). O daemon também sobe dentro de `winbot tray`.
+baixa frequência (2s). O daemon também sobe dentro de `raves tray`.
 
 Cérebro híbrido (`ai/local_brain.py`): Ollama local (modelo leve, ex.
 `qwen2.5:1.5b`) com `keep_alive: "2m"` (RAM liberada após 2 min de ociosidade),
@@ -224,7 +224,7 @@ Contexto de sessão em memória (`core/session.py`): `last_target_app`,
 `last_window_title`, `last_entities`. Referências anafóricas:
 
 ```powershell
-.\.venv\Scripts\winbot.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
+.\.venv\Scripts\raves.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
 ```
 
 `abrir notepad` seta o alvo; `digitar` foca a janela automaticamente; `fechar isso`
@@ -247,24 +247,24 @@ Classificação de risco em 3 níveis (`core/security.py`):
 - **YELLOW** (confirmação rápida se interativo): fechar, RPA/UIA/OCR, cliques.
 - **RED** (confirmação explícita): limpar temp, `ps`, kill em massa.
 
-`winbot do` ganhou `--yes`/`-y` para automação sem prompt. No `shell`, confirmação
+`raves do` ganhou `--yes`/`-y` para automação sem prompt. No `shell`, confirmação
 `[s/N]` via Rich; no `voice listen`, o robô pergunta em voz e escuta
 "sim"/"pode fazer"/"confirmo" vs "não"/"cancela".
 
 ## Cérebro Local · Ollama (setup zero-atrito)
 
-O WinBot gerencia o ciclo de vida do Ollama automaticamente — não precisa ficar
+O RAVES gerencia o ciclo de vida do Ollama automaticamente — não precisa ficar
 rodando na inicialização do Windows.
 
 ```powershell
-.\.venv\Scripts\winbot.exe ai status
-.\.venv\Scripts\winbot.exe ai setup          # instala Ollama (winget) + baixa qwen2.5:1.5b
-.\.venv\Scripts\winbot.exe ai setup --lite    # qwen2.5:0.5b (397 MB, PCs com 4 GB)
-.\.venv\Scripts\winbot.exe ai unload         # descarrega o modelo da RAM agora
-.\.venv\Scripts\winbot.exe ai shutdown       # encerra o serve se foi o WinBot que subiu
+.\.venv\Scripts\raves.exe ai status
+.\.venv\Scripts\raves.exe ai setup          # instala Ollama (winget) + baixa qwen2.5:1.5b
+.\.venv\Scripts\raves.exe ai setup --lite    # qwen2.5:0.5b (397 MB, PCs com 4 GB)
+.\.venv\Scripts\raves.exe ai unload         # descarrega o modelo da RAM agora
+.\.venv\Scripts\raves.exe ai shutdown       # encerra o serve se foi o RAVES que subiu
 ```
 
-Quando o `LocalBrain` precisa responder e a porta 11434 está fechada, o WinBot
+Quando o `LocalBrain` precisa responder e a porta 11434 está fechada, o RAVES
 sobe `ollama serve` em segundo plano (`CREATE_NO_WINDOW`) com
 `OLLAMA_MAX_LOADED_MODELS=1` e `OLLAMA_NUM_PARALLEL=1`, aguarda até 3s e depois
 envia a requisição com `keep_alive: "90s"`, `num_ctx: 1024`, `num_predict: 140`.
@@ -275,19 +275,19 @@ instalado, degrada graciosamente (fallback offline com dicas).
 
 ```powershell
 # Anáforas funcionam em uma única chamada (contexto de sessão em memória):
-.\.venv\Scripts\winbot.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
+.\.venv\Scripts\raves.exe do "abrir notepad e digitar ola mundo e fechar isso" --yes
 
 # Cortesia é removida antes do parser (aspas preservadas):
-.\.venv\Scripts\winbot.exe do "por favor abrir calc agora"
+.\.venv\Scripts\raves.exe do "por favor abrir calc agora"
 
 # Comandos de perfil:
-.\.venv\Scripts\winbot.exe do "tocar musica"
-.\.venv\Scripts\winbot.exe do "preparar meu ambiente"
+.\.venv\Scripts\raves.exe do "tocar musica"
+.\.venv\Scripts\raves.exe do "preparar meu ambiente"
 
 # Risco 3 níveis: GREEN executa, YELLOW/RED pedem confirmação [s/N].
-.\.venv\Scripts\winbot.exe do "limpar temp"          # RED -> prompt
-.\.venv\Scripts\winbot.exe do "limpar temp" --yes     # bypass
-.\.venv\Scripts\winbot.exe do "fechar calc"           # YELLOW -> prompt rápido
+.\.venv\Scripts\raves.exe do "limpar temp"          # RED -> prompt
+.\.venv\Scripts\raves.exe do "limpar temp" --yes     # bypass
+.\.venv\Scripts\raves.exe do "fechar calc"           # YELLOW -> prompt rápido
 ```
 
 `core/session.py` rastreia `last_target_app` / `last_window_title` / `last_entities`.
@@ -296,8 +296,8 @@ instalado, degrada graciosamente (fallback offline com dicas).
 ## Interface Visual · Etapa 7 (HUD Orbital + Central Dark HUD)
 
 ```powershell
-.\.venv\Scripts\winbot.exe ui          # abre a Central de Configurações
-.\.venv\Scripts\winbot.exe tray        # roda na bandeja (HUD + atalho global)
+.\.venv\Scripts\raves.exe ui          # abre a Central de Configurações
+.\.venv\Scripts\raves.exe tray        # roda na bandeja (HUD + atalho global)
 ```
 
 Núcleo Orbital Flutuante: janela frameless, always-on-top, fundo transparente,
@@ -313,9 +313,14 @@ de RAM, aceleração vetorial.
 
 ## Integração Viva · Etapa 8 (HUD + Voz + Input Rápido + Produtividade)
 
+Ao iniciar (`raves shell`, `raves voice listen` ou `raves tray`), o assistente se
+apresenta em áudio com saudação por horário ("Bom dia"/"Boa tarde"/"Boa noite") e
+a mensagem: *"Estou à sua disposição. Serei seu novo agente e amigo."* (TTS via
+pyttsx3, best-effort).
+
 ```powershell
-.\.venv\Scripts\winbot.exe tray          # HUD orbital + bandeja + atalho global
-.\.venv\Scripts\winbot.exe ui            # Central de Configurações
+.\.venv\Scripts\raves.exe tray          # HUD orbital + bandeja + atalho global
+.\.venv\Scripts\raves.exe ui            # Central de Configurações
 ```
 
 - HUD Orbital reage em tempo real: anéis pulsando com o volume do microfone
@@ -328,17 +333,32 @@ de RAM, aceleração vetorial.
 - Classificação de risco GREEN/YELLOW/RED com confirmação interativa e `--yes`.
 - Anáforas: `abrir notepad e digitar ola mundo e fechar isso`.
 
+## Voz Natural (Masculina/Feminina, offline)
+
+```powershell
+.\.venv\Scripts\raves.exe voice set-voice masculina
+.\.venv\Scripts\raves.exe voice set-voice feminina
+.\.venv\Scripts\raves.exe voice test
+.\.venv\Scripts\raves.exe voice setup-tts   # baixa modelo Piper (pt-BR, masculino, neural)
+```
+
+- **Masculina:** WinRT Microsoft Daniel (pt-BR, OneCore) — fallback Piper (faber, neural) se o modelo estiver baixado.
+- **Feminina:** WinRT Microsoft Maria (pt-BR, OneCore).
+- Velocidade ajustada para ~170 (ritmo conversacional natural). Preferência persistida em `voice_profile.tts_gender`.
+- Seletor também na Central de Configurações (aba Voz & Áudio).
+- `setup-tts` baixa o modelo Piper (~60 MB) para TTS neural masculino de alta qualidade.
+
 ## Blindagem · Etapa 1 (SQLite WAL, índice de apps, memória)
 
-Banco local em `~/.winbot/winbot.db` (`WINBOT_DB_PATH` permite isolar em testes).
+Banco local em `~/.raves/raves.db` (`RAVES_DB_PATH` permite isolar em testes).
 **Toda** conexão aplica `PRAGMA journal_mode=WAL` e `PRAGMA synchronous=NORMAL`.
 Tabelas criadas na inicialização: `installed_apps(name PK, target_path, source,
 updated_at)` e `command_history(id, raw_command, success, result_message,
 executed_at)`.
 
 ```powershell
-.\.venv\Scripts\winbot.exe apps sync                # varre Menu Iniciar + App Paths
-.\.venv\Scripts\winbot.exe apps list --filter chrome
+.\.venv\Scripts\raves.exe apps sync                # varre Menu Iniciar + App Paths
+.\.venv\Scripts\raves.exe apps list --filter chrome
 ```
 
 O indexador (`engine/app_indexer.py`) lê `.lnk` recursivamente dos dois
@@ -409,7 +429,7 @@ steps:
 - `engine/gui.py`: `FAILSAFE` ligado, coordenadas validadas contra a tela, denylist de
   hotkeys (`ctrl+alt+delete`, `alt+f4`…), `gui_type` via clipboard **sem logar o texto**.
 - `commands/schedule.py`: nome da tarefa validado por regex, `shell=False`, dry-run.
-- Tudo com `dry_run=True` por padrão; auditoria em `%LOCALAPPDATA%\WinBot`.
+- Tudo com `dry_run=True` por padrão; auditoria em `%LOCALAPPDATA%\RAVES`.
 
 ## Licenciamento (Ed25519, offline)
 
@@ -422,8 +442,8 @@ Ferramenta administrativa — **nunca distribuir**:
 
 - `init` gera o par e injeta a **chave pública** em `core/licensing.py` (entre marcadores).
 - A **chave privada** fica em `keys/` e está no `.gitignore` — nunca versionar.
-- `issue` emite `WINBOT1.<payload b64>.<assinatura b64>`; instale em
-  `%LOCALAPPDATA%\WinBot\license.key`.
+- `issue` emite `RAVES1.<payload b64>.<assinatura b64>`; instale em
+  `%LOCALAPPDATA%\RAVES\license.key`.
 - `licensing.enabled` fica `false` em dev; **ligar apenas no build de distribuição**.
 - `get_hardware_id()` = SHA-256(nome da máquina + serial do volume), com grace period
   para troca de disco.
@@ -434,36 +454,36 @@ Ferramenta administrativa — **nunca distribuir**:
 
 ## Estrutura
 
-`src/winbot/` (src-layout). `config/settings.example.yaml` é documentação; os defaults
-**empacotados** ficam em `src/winbot/assets/settings.defaults.yaml` e o override do
-usuário em `%LOCALAPPDATA%\WinBot\settings.yaml`. Workflows do usuário em
-`~/.winbot/workflows/`.
+`src/raves/` (src-layout). `config/settings.example.yaml` é documentação; os defaults
+**empacotados** ficam em `src/raves/assets/settings.defaults.yaml` e o override do
+usuário em `%LOCALAPPDATA%\RAVES\settings.yaml`. Workflows do usuário em
+`~/.raves/workflows/`.
 
 ## Build de distribuição (Passo 4)
 
 ```powershell
-# .exe onefile validado em dist\winbot\winbot.exe
+# .exe onefile validado em dist\raves\raves.exe
 .\scripts\build.ps1
 
-# .exe + instalador Inno Setup em dist\installer\WinBotSetup-<versao>.exe
+# .exe + instalador Inno Setup em dist\installer\RAVESSetup-<versao>.exe
 .\scripts\build.ps1 -Installer -Version 0.1.0
 ```
 
-`build.ps1` compila `scripts/winbot_entry.py` com Nuitka, valida o binário
+`build.ps1` compila `scripts/raves_entry.py` com Nuitka, valida o binário
 (`version`, `--help`, `license`, um workflow em DRY-RUN) e, com `-Installer`,
 chama `ISCC.exe` sobre `installer.iss`. O instalador coloca o `.exe` em
-`{autopf}\WinBot`, adiciona a pasta ao PATH (opcional), cria o atalho
-*WinBot Console* e instala `licensing.enabled: true` em
-`%LOCALAPPDATA%\WinBot\settings.yaml` **somente se o arquivo não existir**.
+`{autopf}\RAVES`, adiciona a pasta ao PATH (opcional), cria o atalho
+*RAVES Console* e instala `licensing.enabled: true` em
+`%LOCALAPPDATA%\RAVES\settings.yaml` **somente se o arquivo não existir**.
 
 Variáveis de ambiente do build:
 
 | Variável | Uso |
 |---|---|
-| `WINBOT_ISCC` | caminho do `ISCC.exe` (detectado automaticamente) |
-| `WINBOT_SIGN_PFX` / `WINBOT_SIGN_PASSWORD` | assinam `.exe` e instalador via `signtool` |
-| `WINBOT_SIGNTOOL` | caminho do `signtool.exe` |
-| `WINBOT_SIGN_TIMESTAMP_URL` | servidor de timestamp (padrão DigiCert) |
+| `RAVES_ISCC` | caminho do `ISCC.exe` (detectado automaticamente) |
+| `RAVES_SIGN_PFX` / `RAVES_SIGN_PASSWORD` | assinam `.exe` e instalador via `signtool` |
+| `RAVES_SIGNTOOL` | caminho do `signtool.exe` |
+| `RAVES_SIGN_TIMESTAMP_URL` | servidor de timestamp (padrão DigiCert) |
 
 > Sem certificado (**D3** pendente) o build é válido, mas o SmartScreen alerta
 > o cliente. `-SkipSign` silencia o aviso em CI de desenvolvimento.
@@ -473,7 +493,7 @@ Variáveis de ambiente do build:
 
 CI: `.github/workflows/ci.yml` roda os gates em todo push/PR; `release.yml`
 roda em tags `v*` e gera o instalador como artifact. O segredo
-`WINBOT_SIGN_PFX_BASE64` + `WINBOT_SIGN_PASSWORD` habilita a assinatura no CI.
+`RAVES_SIGN_PFX_BASE64` + `RAVES_SIGN_PASSWORD` habilita a assinatura no CI.
 
 ## Status
 

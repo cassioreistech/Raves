@@ -1,7 +1,7 @@
 from typer.testing import CliRunner
 
-from winbot.engine import audio_pipeline
-from winbot.main import app
+from raves.engine import audio_pipeline
+from raves.main import app
 
 
 def test_voice_calibrate_com_audio_mockado(mocker) -> None:

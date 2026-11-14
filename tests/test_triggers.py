@@ -1,6 +1,6 @@
 import threading
 
-from winbot.engine.triggers import TriggerManager, TriggerRule
+from raves.engine.triggers import TriggerManager, TriggerRule
 
 
 def test_trigger_rule_validacao() -> None:
@@ -12,9 +12,9 @@ def test_trigger_rule_validacao() -> None:
 
 
 def test_manager_add_remove_list(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("WINBOT_DB_PATH", str(tmp_path / "t.db"))
+    monkeypatch.setenv("RAVES_DB_PATH", str(tmp_path / "t.db"))
     triggers_file = tmp_path / "triggers.yaml"
-    monkeypatch.setattr("winbot.engine.triggers.TRIGGERS_FILE", triggers_file)
+    monkeypatch.setattr("raves.engine.triggers.TRIGGERS_FILE", triggers_file)
 
     manager = TriggerManager(rules=[])
     manager.add(
@@ -31,9 +31,9 @@ def test_manager_add_remove_list(tmp_path, monkeypatch) -> None:
 
 
 def test_file_created_debounce_dispara_apos_debounce(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("WINBOT_DB_PATH", str(tmp_path / "t.db"))
+    monkeypatch.setenv("RAVES_DB_PATH", str(tmp_path / "t.db"))
     triggers_file = tmp_path / "triggers.yaml"
-    monkeypatch.setattr("winbot.engine.triggers.TRIGGERS_FILE", triggers_file)
+    monkeypatch.setattr("raves.engine.triggers.TRIGGERS_FILE", triggers_file)
 
     fired: list[tuple[str, str]] = []
     manager = TriggerManager(rules=[])
@@ -50,7 +50,7 @@ def test_file_created_debounce_dispara_apos_debounce(monkeypatch, tmp_path) -> N
     manager.start()
 
     # Simula evento via handler diretamente.
-    from winbot.engine.triggers import _FileHandler
+    from raves.engine.triggers import _FileHandler
 
     handler = _FileHandler(manager, rule)
     fake_event = type("E", (), {"is_directory": False, "src_path": str(tmp_path / "a.pdf")})()
@@ -65,9 +65,9 @@ def test_file_created_debounce_dispara_apos_debounce(monkeypatch, tmp_path) -> N
 
 
 def test_file_created_filtra_extensao(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("WINBOT_DB_PATH", str(tmp_path / "t.db"))
+    monkeypatch.setenv("RAVES_DB_PATH", str(tmp_path / "t.db"))
     triggers_file = tmp_path / "triggers.yaml"
-    monkeypatch.setattr("winbot.engine.triggers.TRIGGERS_FILE", triggers_file)
+    monkeypatch.setattr("raves.engine.triggers.TRIGGERS_FILE", triggers_file)
 
     fired: list[str] = []
     manager = TriggerManager(rules=[])
@@ -83,7 +83,7 @@ def test_file_created_filtra_extensao(monkeypatch, tmp_path) -> None:
     manager.add(rule)
     manager.start()
 
-    from winbot.engine.triggers import _FileHandler
+    from raves.engine.triggers import _FileHandler
 
     handler = _FileHandler(manager, rule)
     fake_txt = type("E", (), {"is_directory": False, "src_path": str(tmp_path / "a.txt")})()
@@ -95,9 +95,9 @@ def test_file_created_filtra_extensao(monkeypatch, tmp_path) -> None:
 
 
 def test_window_opened_dispara_na_transicao(monkeypatch, tmp_path, mocker) -> None:
-    monkeypatch.setenv("WINBOT_DB_PATH", str(tmp_path / "t.db"))
+    monkeypatch.setenv("RAVES_DB_PATH", str(tmp_path / "t.db"))
     triggers_file = tmp_path / "triggers.yaml"
-    monkeypatch.setattr("winbot.engine.triggers.TRIGGERS_FILE", triggers_file)
+    monkeypatch.setattr("raves.engine.triggers.TRIGGERS_FILE", triggers_file)
 
     fired: list[str] = []
     manager = TriggerManager(rules=[])

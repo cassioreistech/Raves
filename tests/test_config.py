@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from winbot.core.config import (
+from raves.core.config import (
     WorkflowDefinition,
     create_user_config,
     load_settings,
@@ -17,7 +17,7 @@ def test_defaults_carregam(tmp_path) -> None:
     assert "powershell.exe" in settings.security.allowed_executables
     assert "notepad.exe" in settings.security.allowed_apps
     assert "lsass.exe" in settings.security.deny_processes
-    assert settings.workspace_path().name == "WinBot"
+    assert settings.workspace_path().name == "RAVES"
 
 
 def test_override_faz_merge(tmp_path) -> None:
@@ -45,7 +45,7 @@ def test_yaml_nao_mapeamento(tmp_path) -> None:
 
 
 def test_create_user_config_e_idempotente(tmp_path) -> None:
-    target = tmp_path / "WinBot" / "settings.yaml"
+    target = tmp_path / "RAVES" / "settings.yaml"
     created = create_user_config(path=target)
     assert created == target
     assert "allow_shell" in created.read_text(encoding="utf-8")

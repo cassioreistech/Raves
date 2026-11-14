@@ -1,11 +1,11 @@
 # Template de configuração — NUNCA coloque segredos aqui.
-# O arquivo real do cliente fica em %LOCALAPPDATA%\WinBot\settings.yaml
-# e é criado por `winbot init`.
+# O arquivo real do cliente fica em %LOCALAPPDATA%\RAVES\settings.yaml
+# e é criado por `raves init`.
 general:
   dry_run: true          # workflows nunca aplicam sem --apply
   log_level: INFO
 paths:
-  workspace: null        # null => %USERPROFILE%\WinBot
+  workspace: null        # null => %USERPROFILE%\RAVES
 security:
   allow_shell: false     # se false, apenas dry-run; nenhum processo é iniciado
   allowed_executables:   # allowlist para engine/shell.py

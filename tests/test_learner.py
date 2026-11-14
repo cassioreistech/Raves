@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from winbot.core import database
-from winbot.core.learner import GREETING_CONFIDENCE, BehaviorLearner, context_key
+from raves.core import database
+from raves.core.learner import GREETING_CONFIDENCE, BehaviorLearner, context_key
 
 
 def _seed_routine(raw: str = "abrir calc", occurrences: int = 3) -> None:
@@ -81,7 +81,7 @@ def test_decaimento_de_interesse() -> None:
 
 
 def test_context_key_roundtrip() -> None:
-    from winbot.core.learner import parse_context
+    from raves.core.learner import parse_context
 
     key = context_key(4, "tarde")
     assert parse_context(key) == (4, "tarde")

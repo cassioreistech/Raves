@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QApplication
 
-from winbot.core import database
-from winbot.ui.settings_window import SettingsWindow
+from raves.core import database
+from raves.ui.settings_window import SettingsWindow
 
 _QAPP = QApplication.instance() or QApplication([])
 

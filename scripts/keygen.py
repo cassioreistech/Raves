@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KEYS_DIR = ROOT / "keys"
 PRIVATE_PATH = KEYS_DIR / "private_key.pem"
 PUBLIC_PATH = KEYS_DIR / "public_key.pem"
-LICENSING_PATH = ROOT / "src" / "winbot" / "core" / "licensing.py"
+LICENSING_PATH = ROOT / "src" / "raves" / "core" / "licensing.py"
 
 BEGIN = "# --- BEGIN PUBLIC KEY (gerada por scripts/keygen.py) ---"
 END = "# --- END PUBLIC KEY ---"
@@ -72,7 +72,7 @@ def _confirm_overwrite() -> bool:
 def cmd_issue(args: argparse.Namespace) -> None:
     if not PRIVATE_PATH.exists():
         raise SystemExit("rode primeiro: python scripts/keygen.py init")
-    from winbot.core.licensing import get_hardware_id, license_path
+    from raves.core.licensing import get_hardware_id, license_path
 
     private = serialization.load_pem_private_key(PRIVATE_PATH.read_bytes(), password=None)
     if not isinstance(private, Ed25519PrivateKey):
@@ -85,7 +85,7 @@ def cmd_issue(args: argparse.Namespace) -> None:
         "exp": (date.today() + timedelta(days=args.days)).isoformat(),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    token = f"WINBOT1.{_encode(raw)}.{_encode(private.sign(raw))}"
+    token = f"RAVES1.{_encode(raw)}.{_encode(private.sign(raw))}"
 
     out = KEYS_DIR / f"license_{hwid.replace('-', '')}.key"
     out.write_text(token, encoding="utf-8")
@@ -99,7 +99,7 @@ def cmd_issue(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="WinBot keygen (uso administrativo)")
+    parser = argparse.ArgumentParser(description="RAVES keygen (uso administrativo)")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="Gera o par de chaves e configura licensing.py")
     issue = sub.add_parser("issue", help="Emite uma licença assinada")

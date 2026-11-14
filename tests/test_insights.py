@@ -1,9 +1,9 @@
 from typer.testing import CliRunner
 
-from winbot.core import database
-from winbot.core.dispatcher import execute_natural_command
-from winbot.engine.observer import ContextObserver
-from winbot.main import app
+from raves.core import database
+from raves.core.dispatcher import execute_natural_command
+from raves.engine.observer import ContextObserver
+from raves.main import app
 
 
 def test_insights_profile_vazio() -> None:

@@ -1,6 +1,6 @@
 # Override instalado SOMENTE em builds de distribuicao (Inno Setup, Passo 4).
-# O instalador copia este arquivo para %LOCALAPPDATA%\WinBot\settings.yaml com
-# `onlyifdoesntexist`: nunca sobrescreve a configuracao de quem ja usa o WinBot.
+# O instalador copia este arquivo para %LOCALAPPDATA%\RAVES\settings.yaml com
+# `onlyifdoesntexist`: nunca sobrescreve a configuracao de quem ja usa o RAVES.
 # load_settings() faz merge com os defaults empacotados, entao basta a chave abaixo.
 #
 # ATENCAO: licenciamento local e contornavel por patch no binario (ver README/PLAN).

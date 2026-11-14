@@ -1,7 +1,7 @@
 import pytest
 
-from winbot.core.config import SecuritySettings
-from winbot.core.security import (
+from raves.core.config import SecuritySettings
+from raves.core.security import (
     HARD_DENY,
     SecurityError,
     SecurityViolationError,
@@ -79,7 +79,7 @@ def test_argv_vazio(policy) -> None:
 
 
 def test_check_command_e_puro(policy, mocker) -> None:
-    audit_mock = mocker.patch("winbot.core.security.audit")
+    audit_mock = mocker.patch("raves.core.security.audit")
     check_command(["powershell.exe", "Get-Date"], policy)
     audit_mock.assert_not_called()
 

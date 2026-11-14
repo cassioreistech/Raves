@@ -8,7 +8,7 @@ import win32api
 import win32com
 
 print(
-    "winbot native imports OK:",
+    "raves native imports OK:",
     win32api.GetComputerName(),
     pyautogui.__name__,
     pyperclip.__name__,

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication
 
-from winbot.ui.state_bridge import VALID_STATES, StateBridge, UiState
+from raves.ui.state_bridge import VALID_STATES, StateBridge, UiState
 
 _QAPP = QApplication.instance() or QApplication([])
 

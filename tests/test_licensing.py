@@ -6,7 +6,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from winbot.core import licensing
+from raves.core import licensing
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def _token(private: Ed25519PrivateKey, payload: dict) -> str:
     def encode(value: bytes) -> str:
         return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
 
-    return f"WINBOT1.{encode(raw)}.{encode(private.sign(raw))}"
+    return f"RAVES1.{encode(raw)}.{encode(private.sign(raw))}"
 
 
 def test_hwid_estavel(hwid) -> None:

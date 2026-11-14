@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from winbot.core import database
-from winbot.engine import observer
+from raves.core import database
+from raves.engine import observer
 
 
 def test_classifica_musica_com_alias_curto() -> None:
@@ -55,7 +55,7 @@ def test_capture_once_ignora_janela_vazia(mocker) -> None:
 
 
 def test_start_stop_com_event_limpo(monkeypatch, mocker) -> None:
-    monkeypatch.delenv("WINBOT_OBSERVER_DISABLED")
+    monkeypatch.delenv("RAVES_OBSERVER_DISABLED")
     mocker.patch.object(observer.ContextObserver, "capture_once", return_value=None)
     obs = observer.ContextObserver()
     obs.start_background_watch(interval_seconds=5)
@@ -65,7 +65,7 @@ def test_start_stop_com_event_limpo(monkeypatch, mocker) -> None:
 
 
 def test_observer_desligado_por_env(monkeypatch) -> None:
-    monkeypatch.setenv("WINBOT_OBSERVER_DISABLED", "1")
+    monkeypatch.setenv("RAVES_OBSERVER_DISABLED", "1")
     obs = observer.ContextObserver()
     obs.start_background_watch()
     assert obs.running is False

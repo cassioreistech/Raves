@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from winbot.engine.audio_pipeline import ResilientAudioCapture
+from raves.engine.audio_pipeline import ResilientAudioCapture
 
 
 def test_process_block_preserva_tamanho_e_filtra() -> None:

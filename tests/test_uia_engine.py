@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-import winbot.engine.uia_engine as uia_engine
+import raves.engine.uia_engine as uia_engine
 
 
 def _desktop_with(windows):

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QApplication
 
-from winbot.ui.hud_overlay import HudOverlay
-from winbot.ui.state_bridge import StateBridge
+from raves.ui.hud_overlay import HudOverlay
+from raves.ui.state_bridge import StateBridge
 
 _QAPP = QApplication.instance() or QApplication([])
 
@@ -50,9 +50,9 @@ def test_hud_text_submit_dispara_worker(mocker) -> None:
     hud = HudOverlay(bridge)
     states: list[str] = []
     bridge.state_changed.connect(lambda s, c: states.append(s))
-    mocker.patch("winbot.core.config.load_settings")
+    mocker.patch("raves.core.config.load_settings")
     mocker.patch(
-        "winbot.core.dispatcher.execute_natural_command",
+        "raves.core.dispatcher.execute_natural_command",
         return_value=[],
     )
     hud.text_input.setText("abrir calc")

@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from winbot.core import autostart
+from raves.core import autostart
 
 
 def test_is_enabled_false_quando_chave_ausente() -> None:

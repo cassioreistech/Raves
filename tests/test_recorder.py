@@ -2,8 +2,8 @@ from pathlib import Path
 
 import yaml
 
-from winbot.core.config import WorkflowDefinition
-from winbot.engine.recorder import WorkflowRecorder
+from raves.core.config import WorkflowDefinition
+from raves.engine.recorder import WorkflowRecorder
 
 
 def test_save_gera_yaml_valido(tmp_path: Path) -> None:

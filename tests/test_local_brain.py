@@ -1,11 +1,11 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from winbot.ai.local_brain import LocalBrain
+from raves.ai.local_brain import LocalBrain
 
 
 def test_is_available_cache_e_offline(monkeypatch) -> None:
-    monkeypatch.delenv("WINBOT_DISABLE_LOCAL_BRAIN", raising=False)
+    monkeypatch.delenv("RAVES_DISABLE_LOCAL_BRAIN", raising=False)
     brain = LocalBrain()
     with patch("urllib.request.urlopen", side_effect=OSError("offline")):
         assert brain.is_available() is False
@@ -16,13 +16,13 @@ def test_is_available_cache_e_offline(monkeypatch) -> None:
 
 
 def test_is_available_respeita_env_disable(monkeypatch) -> None:
-    monkeypatch.setenv("WINBOT_DISABLE_LOCAL_BRAIN", "1")
+    monkeypatch.setenv("RAVES_DISABLE_LOCAL_BRAIN", "1")
     brain = LocalBrain()
     assert brain.is_available() is False
 
 
 def test_ask_retorna_action_quando_llm_responde_action(monkeypatch) -> None:
-    monkeypatch.delenv("WINBOT_DISABLE_LOCAL_BRAIN", raising=False)
+    monkeypatch.delenv("RAVES_DISABLE_LOCAL_BRAIN", raising=False)
     brain = LocalBrain()
     # Forca disponivel.
     brain._available_cache = (True, __import__("time").monotonic())
@@ -38,7 +38,7 @@ def test_ask_retorna_action_quando_llm_responde_action(monkeypatch) -> None:
 
 
 def test_ask_retorna_texto_conversacional(monkeypatch) -> None:
-    monkeypatch.delenv("WINBOT_DISABLE_LOCAL_BRAIN", raising=False)
+    monkeypatch.delenv("RAVES_DISABLE_LOCAL_BRAIN", raising=False)
     brain = LocalBrain()
     brain._available_cache = (True, __import__("time").monotonic())
     payload = {"response": "Olá! Posso ajudar com automações."}
@@ -60,7 +60,7 @@ def test_ask_offline_retorna_vazio() -> None:
 
 
 def test_ask_inclui_clipboard_quando_mencionado(monkeypatch) -> None:
-    monkeypatch.delenv("WINBOT_DISABLE_LOCAL_BRAIN", raising=False)
+    monkeypatch.delenv("RAVES_DISABLE_LOCAL_BRAIN", raising=False)
     brain = LocalBrain()
     brain._available_cache = (True, __import__("time").monotonic())
     captured: dict[str, str] = {}
@@ -80,7 +80,7 @@ def test_ask_inclui_clipboard_quando_mencionado(monkeypatch) -> None:
 
 
 def test_keep_alive_dois_minutos_no_payload(monkeypatch) -> None:
-    monkeypatch.delenv("WINBOT_DISABLE_LOCAL_BRAIN", raising=False)
+    monkeypatch.delenv("RAVES_DISABLE_LOCAL_BRAIN", raising=False)
     brain = LocalBrain()
     brain._available_cache = (True, __import__("time").monotonic())
     captured: dict[str, str] = {}

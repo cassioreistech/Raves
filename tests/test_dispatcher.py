@@ -2,16 +2,16 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from winbot.core import database
-from winbot.core.config import SecuritySettings
-from winbot.core.dispatcher import (
+from raves.core import database
+from raves.core.config import SecuritySettings
+from raves.core.dispatcher import (
     _policy_for,
     _resolve_app_name,
     execute_natural_command,
     parse_instruction,
     redact_command,
 )
-from winbot.main import app
+from raves.main import app
 
 CHAIN = "abrir calc e esperar 1 segundos e fechar calc"
 
@@ -64,10 +64,10 @@ def test_comando_desconhecido_e_pedido_vazio() -> None:
 
 
 def test_kill_process_com_lista_de_aliases_soma(mocker) -> None:
-    from winbot.core.config import WorkflowStep
-    from winbot.core.dispatcher import execute_step
+    from raves.core.config import WorkflowStep
+    from raves.core.dispatcher import execute_step
 
-    kill = mocker.patch("winbot.engine.windows_api.kill_process_by_name", return_value=1)
+    kill = mocker.patch("raves.engine.windows_api.kill_process_by_name", return_value=1)
     step = WorkflowStep(name="fechar", action="kill_process", params={"name": ["a.exe", "b.exe"]})
     outcome = execute_step(step, policy=SecuritySettings(), dry_run=True)
     assert outcome.ok is True
@@ -76,10 +76,10 @@ def test_kill_process_com_lista_de_aliases_soma(mocker) -> None:
 
 
 def test_dry_run_nao_executa_nada(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
-    mocker.patch("winbot.engine.windows_api.kill_process_by_name", return_value=1)
-    popen = mocker.patch("winbot.engine.windows_api.subprocess.Popen")
-    sleep = mocker.patch("winbot.core.dispatcher.time.sleep")
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.kill_process_by_name", return_value=1)
+    popen = mocker.patch("raves.engine.windows_api.subprocess.Popen")
+    sleep = mocker.patch("raves.core.dispatcher.time.sleep")
 
     results = execute_natural_command(CHAIN, apply=False, policy=SecuritySettings())
     assert len(results) == 3
@@ -100,7 +100,7 @@ def test_ps_na_blacklist_e_fail_closed() -> None:
 
 
 def test_clean_temp_dry_run_nao_apaga(tmp_path: Path, mocker) -> None:
-    mocker.patch("winbot.core.dispatcher.tempfile.gettempdir", return_value=str(tmp_path))
+    mocker.patch("raves.core.dispatcher.tempfile.gettempdir", return_value=str(tmp_path))
     (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     (tmp_path / "pasta").mkdir()
 
@@ -112,7 +112,7 @@ def test_clean_temp_dry_run_nao_apaga(tmp_path: Path, mocker) -> None:
 
 
 def test_clean_temp_apply_remove_so_arquivos_topo(tmp_path: Path, mocker) -> None:
-    mocker.patch("winbot.core.dispatcher.tempfile.gettempdir", return_value=str(tmp_path))
+    mocker.patch("raves.core.dispatcher.tempfile.gettempdir", return_value=str(tmp_path))
     (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     (tmp_path / "pasta").mkdir()
     (tmp_path / "pasta" / "b.txt").write_text("y", encoding="utf-8")
@@ -126,8 +126,8 @@ def test_clean_temp_apply_remove_so_arquivos_topo(tmp_path: Path, mocker) -> Non
 
 
 def test_do_dry_run_renderiza_icones(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
-    mocker.patch("winbot.engine.windows_api.kill_process_by_name", return_value=1)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.kill_process_by_name", return_value=1)
     result = CliRunner().invoke(app, ["do", CHAIN, "--dry-run"])
     assert result.exit_code == 0, result.stdout
     assert "✔" in result.stdout
@@ -148,7 +148,7 @@ def test_do_comando_desconhecido() -> None:
 
 
 def test_shell_executa_e_sai_com_exit(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     result = CliRunner().invoke(app, ["shell", "--dry-run"], input="abrir calc\nsair\n")
     assert result.exit_code == 0, result.stdout
     assert "✔" in result.stdout
@@ -165,7 +165,7 @@ def test_shell_sai_com_exit() -> None:
 
 
 def test_normalizar_remove_cortesia_preservando_aspas() -> None:
-    from winbot.core.dispatcher import _normalize_instruction
+    from raves.core.dispatcher import _normalize_instruction
 
     assert _normalize_instruction("por favor abrir calc agora") == "abrir calc"
     assert _normalize_instruction('digitar "ola mundo" pra mim') == 'digitar "ola mundo"'
@@ -173,12 +173,12 @@ def test_normalizar_remove_cortesia_preservando_aspas() -> None:
 
 
 def test_contexto_anavorico_abrir_digitar_fechar_ele(mocker) -> None:
-    from winbot.core.session import get_session
+    from raves.core.session import get_session
 
     get_session().reset()
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
-    mocker.patch("winbot.engine.windows_api.kill_process_by_name", return_value=1)
-    mocker.patch("winbot.engine.windows_api.focus_window", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.kill_process_by_name", return_value=1)
+    mocker.patch("raves.engine.windows_api.focus_window", return_value=True)
 
     results = execute_natural_command(
         "abrir notepad e digitar ola mundo e fechar isso",
@@ -194,7 +194,7 @@ def test_contexto_anavorico_abrir_digitar_fechar_ele(mocker) -> None:
 def test_tocar_musica_com_perfil_mockado(mocker) -> None:
     database.upsert_interest("musica", "lofi")
     database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     results = execute_natural_command("tocar musica", apply=True, policy=SecuritySettings())
     assert results[0].ok is True
     assert "lofi" in results[0].message
@@ -202,13 +202,13 @@ def test_tocar_musica_com_perfil_mockado(mocker) -> None:
 
 def test_tocar_musica_sem_perfil_abre_player_padrao(mocker) -> None:
     database.upsert_apps([("chrome", r"C:\apps\chrome.exe", "app_paths_hklm")])
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     results = execute_natural_command("tocar musica", apply=True, policy=SecuritySettings())
     assert results[0].ok is True
 
 
 def test_risco_green_nao_pede_confirmacao() -> None:
-    from winbot.core.security import RiskLevel, classify_risk
+    from raves.core.security import RiskLevel, classify_risk
 
     assert classify_risk("launch_app", {"target": "calc.exe"}) == RiskLevel.GREEN
     assert classify_risk("tocar_musica", {}) == RiskLevel.GREEN
@@ -216,7 +216,7 @@ def test_risco_green_nao_pede_confirmacao() -> None:
 
 
 def test_risco_yellow_e_red() -> None:
-    from winbot.core.security import RiskLevel, classify_risk
+    from raves.core.security import RiskLevel, classify_risk
 
     assert classify_risk("kill_process", {"name": "calc.exe"}) == RiskLevel.YELLOW
     assert classify_risk("kill_process", {"name": ["a", "b", "c", "d"]}) == RiskLevel.RED
@@ -229,10 +229,10 @@ def test_risco_yellow_e_red() -> None:
 
 def test_confirmacao_yellow_com_callback() -> None:
     launch = __import__("unittest.mock", fromlist=["patch"]).patch(
-        "winbot.engine.windows_api.launch_app", return_value=True
+        "raves.engine.windows_api.launch_app", return_value=True
     )
     kill = __import__("unittest.mock", fromlist=["patch"]).patch(
-        "winbot.engine.windows_api.kill_process_by_name", return_value=1
+        "raves.engine.windows_api.kill_process_by_name", return_value=1
     )
     with launch, kill:
         # fechar é YELLOW: com confirm_fn retornando False, aborta.
@@ -248,7 +248,7 @@ def test_confirmacao_yellow_com_callback() -> None:
 
 def test_confirmacao_red_com_yes_bypass(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / "a.txt").write_text("x", encoding="utf-8")
-    monkeypatch.setattr("winbot.core.dispatcher.tempfile.gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr("raves.core.dispatcher.tempfile.gettempdir", lambda: str(tmp_path))
     results = execute_natural_command(
         "limpar temp", apply=True, auto_yes=True, policy=SecuritySettings()
     )
@@ -273,17 +273,17 @@ def test_cascade_offline_retorna_fallback_amigavel() -> None:
 
 
 def test_cascade_com_ollama_action_executa_comando(mocker) -> None:
-    from winbot.ai import local_brain as lb_mod
+    from raves.ai import local_brain as lb_mod
 
     mocker.patch.object(lb_mod.LocalBrain, "is_available", return_value=True)
     mocker.patch.object(lb_mod.LocalBrain, "ask", return_value={"text": "", "action": "abrir calc"})
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     results = execute_natural_command("abra a calculadora", apply=False, policy=SecuritySettings())
     assert any("abrir calc.exe" in item.label for item in results)
 
 
 def test_cascade_com_ollama_conversacional_retorna_texto(mocker) -> None:
-    from winbot.ai import local_brain as lb_mod
+    from raves.ai import local_brain as lb_mod
 
     mocker.patch.object(lb_mod.LocalBrain, "is_available", return_value=True)
     mocker.patch.object(
@@ -335,7 +335,7 @@ def test_parse_esperar_janela() -> None:
 
 
 def test_uia_click_dry_run_nao_clica(mocker) -> None:
-    click = mocker.patch("winbot.engine.uia_engine.click_control", return_value=(True, "ok"))
+    click = mocker.patch("raves.engine.uia_engine.click_control", return_value=(True, "ok"))
     results = execute_natural_command(
         "clicar em Cinco na janela Calculadora", apply=False, policy=SecuritySettings()
     )
@@ -345,9 +345,9 @@ def test_uia_click_dry_run_nao_clica(mocker) -> None:
 
 def test_uia_click_falha_gera_snapshot(mocker) -> None:
     mocker.patch(
-        "winbot.engine.uia_engine.click_control", return_value=(False, "controle não encontrado")
+        "raves.engine.uia_engine.click_control", return_value=(False, "controle não encontrado")
     )
-    snapshot = mocker.patch("winbot.core.dispatcher.capture_error_snapshot")
+    snapshot = mocker.patch("raves.core.dispatcher.capture_error_snapshot")
     results = execute_natural_command(
         "clicar em Inexistente na janela Calculadora", apply=True, policy=SecuritySettings()
     )
@@ -389,7 +389,7 @@ def test_redact_command_mascara_texto_de_digitar() -> None:
 
 
 def test_log_registra_toda_execucao(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     execute_natural_command("abrir calc", apply=False, policy=SecuritySettings())
     row = database.get_recent_history()[0]
     assert row["raw_command"] == "abrir calc"
@@ -398,7 +398,7 @@ def test_log_registra_toda_execucao(mocker) -> None:
 
 
 def test_repetir_reexecuta_sem_loop(mocker) -> None:
-    mocker.patch("winbot.engine.windows_api.launch_app", return_value=True)
+    mocker.patch("raves.engine.windows_api.launch_app", return_value=True)
     execute_natural_command("abrir calc", apply=False, policy=SecuritySettings())
 
     results = execute_natural_command("repetir", apply=False, policy=SecuritySettings())

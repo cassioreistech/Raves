@@ -1,7 +1,7 @@
 # Fixture de segurança: DEVE ser bloqueado por core/security.py.
 # A blacklist original exigia "c:\" literal e -Recurse antes de -Force;
 # este comando usa path variavel e ordem invertida justamente para provar a correcao.
-# Uso: winbot workflow run examples/bloqueado.workflow.yaml  -> exit code 1
+# Uso: raves workflow run examples/bloqueado.workflow.yaml  -> exit code 1
 name: Tentativa bloqueada
 description: Remove-Item com path variavel e flags em ordem invertida.
 steps:
