@@ -146,15 +146,24 @@ class VoiceEngine:
 
             audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype("float32") / 32768.0
             prompt = self.build_initial_prompt()
-            segments, _info = model.transcribe(
-                audio,
-                language="pt",
-                initial_prompt=prompt,
-                beam_size=5,
-                temperature=0.0,
-                vad_filter=True,
-            )
-            return " ".join(segment.text for segment in segments).strip()
+            # Primeira tentativa com VAD (filtra ruído). Se vier vazio, tenta sem
+            # VAD — em alguns microfones o VAD do Whisper descarta a fala.
+            for use_vad in (True, False):
+                try:
+                    segments, _info = model.transcribe(
+                        audio,
+                        language="pt",
+                        initial_prompt=prompt,
+                        beam_size=5,
+                        temperature=0.0 if use_vad else 0.2,
+                        vad_filter=use_vad,
+                    )
+                    text = " ".join(segment.text for segment in segments).strip()
+                    if text:
+                        return text
+                except Exception as exc:
+                    logger.debug(f"whisper (vad={use_vad}): {exc}")
+            return ""
         except Exception as exc:
             logger.warning(f"voice: transcrição falhou: {exc}")
             return ""
