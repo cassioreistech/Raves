@@ -8,14 +8,14 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.markup import escape
-from rich.prompt import Prompt
 from rich.table import Table
 
 from winbot import __version__
-from winbot.commands import apps, rpa_tools, schedule, system, workflow
-from winbot.core.config import Settings, load_settings
-from winbot.core.dispatcher import DispatchResult, execute_natural_command, redact_command
-from winbot.core.licensing import LicenseError, check_license_or_raise, current_status
+from winbot.commands import apps, insights, rpa_tools, schedule, system, voice, workflow
+from winbot.commands._interactive import enforce_license, interactive_loop, render_results
+from winbot.core.config import load_settings
+from winbot.core.dispatcher import execute_natural_command, redact_command
+from winbot.core.licensing import current_status
 from winbot.core.logger import setup_logger
 
 
@@ -39,6 +39,8 @@ app.add_typer(workflow.app, name="workflow")
 app.add_typer(schedule.app, name="schedule")
 app.add_typer(rpa_tools.app, name="rpa")
 app.add_typer(apps.app, name="apps")
+app.add_typer(insights.app, name="insights")
+app.add_typer(voice.app, name="voice")
 
 console = Console()
 
@@ -74,36 +76,6 @@ def license_cmd() -> None:
     console.print(table)
 
 
-def _enforce_license(settings: Settings) -> None:
-    """Mesmo gate comercial de `workflow run`, aplicado a `do` e `shell`."""
-    if not settings.licensing.enabled:
-        return
-    try:
-        check_license_or_raise()
-    except LicenseError as exc:
-        console.print(f"[bold red]Licença:[/bold red] {escape(str(exc))}")
-        raise typer.Exit(code=1) from exc
-
-
-def _status_icons() -> tuple[str, str]:
-    """✔/✘ em UTF-8; fallback ASCII em console cp1252 (ver PLAN.md §7)."""
-    encoding = (getattr(console.file, "encoding", "") or "").lower().replace("-", "")
-    return ("✔", "✘") if "utf" in encoding else ("OK", "X")
-
-
-def _render_results(results: list[DispatchResult]) -> None:
-    ok_icon, bad_icon = _status_icons()
-    for item in results:
-        good = item.ok and not item.blocked
-        icon = ok_icon if good else bad_icon
-        color = "green" if good else "red"
-        prefix = "BLOQUEADO: " if item.blocked else ""
-        console.print(
-            f"  [{color}]{icon}[/{color}] [bold]{escape(item.label)}[/bold] "
-            f"[dim]{escape(prefix + item.message)}[/dim]"
-        )
-
-
 @app.command("do")
 def do_cmd(
     pedido: Annotated[
@@ -119,12 +91,12 @@ def do_cmd(
 ) -> None:
     """Executa um pedido em linguagem natural imediatamente, sem arquivo YAML."""
     settings = load_settings()
-    _enforce_license(settings)
+    enforce_license(settings)
     mode = "SIMULAÇÃO" if dry_run else "EXECUÇÃO"
     console.print(f"[dim]Pedido ({mode}):[/dim] {escape(redact_command(pedido))}")
 
     results = execute_natural_command(pedido, apply=not dry_run, policy=settings.security)
-    _render_results(results)
+    render_results(results)
     if any(not item.ok or item.blocked for item in results):
         console.print("[bold red]Pedido interrompido (fail-closed).[/bold red]")
         raise typer.Exit(code=1)
@@ -139,27 +111,15 @@ def shell_cmd(
     ] = False,
 ) -> None:
     """Loop interativo: digite pedidos até 'sair' ou 'exit' (Ctrl+C também encerra)."""
-    settings = load_settings()
-    _enforce_license(settings)
-    console.print(
-        "[bold cyan]WinBot Shell[/bold cyan] [dim]- pedidos em pt-BR; "
-        "'sair'/'exit' encerra; Ctrl+C também.[/dim]"
+    interactive_loop(
+        prompt="winbot >",
+        header=(
+            "[bold cyan]WinBot Shell[/bold cyan] [dim]- pedidos em pt-BR; "
+            "'sair'/'exit' encerra; Ctrl+C também.[/dim]"
+        ),
+        dry_run=dry_run,
+        settings=load_settings(),
     )
-
-    while True:
-        try:
-            pedido = Prompt.ask("winbot >", console=console).strip()
-        except (EOFError, KeyboardInterrupt):
-            console.print()
-            break
-        if not pedido:
-            continue
-        if pedido.casefold() in {"sair", "exit", "quit"}:
-            break
-        results = execute_natural_command(pedido, apply=not dry_run, policy=settings.security)
-        _render_results(results)
-
-    console.print("[dim]Até logo.[/dim]")
 
 
 if __name__ == "__main__":

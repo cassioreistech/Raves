@@ -20,6 +20,7 @@ from pathlib import Path
 
 from winbot.core import database
 from winbot.core.config import SecuritySettings, WorkflowStep, load_settings
+from winbot.core.learner import BehaviorLearner
 from winbot.core.logger import audit, logger
 from winbot.core.security import SecurityViolationError
 from winbot.engine import gui, shell, windows_api
@@ -488,6 +489,26 @@ def _handle_memory(raw: str, *, apply: bool, policy: SecuritySettings) -> list[D
     return rows
 
 
+def _handle_insights(raw: str) -> list[DispatchResult]:
+    """'o que voce aprendeu' / 'me de uma dica' / 'sugestoes' / 'meu perfil'."""
+    learner = BehaviorLearner()
+    try:
+        patterns = learner.analyze_patterns()
+        tips = learner.get_recommendations()
+    except Exception as exc:  # analise nunca pode derrubar um pedido
+        result = [DispatchResult(raw, False, f"Falha ao analisar perfil: {exc}")]
+        _log(raw, result)
+        return result
+
+    results = [
+        DispatchResult("aprendizado", True, f"{patterns} padrão(ões) consolidado(s)"),
+        *[DispatchResult(f"dica {index}", True, tip) for index, tip in enumerate(tips, start=1)],
+    ]
+    # Resumo curto: logar as dicas inteiras inflaria o command_history.
+    _log(raw, [DispatchResult(raw, True, f"{patterns} padrões / {len(tips)} dicas")])
+    return results
+
+
 def execute_natural_command(
     instruction: str,
     *,
@@ -504,6 +525,10 @@ def execute_natural_command(
     raw = instruction.strip()
     active = policy if policy is not None else load_settings().security
 
+    # Insight primeiro: esses prefixos tambem estao em MEMORY_PREFIXES (anti-loop),
+    # mas precisam cair no learner, nao no repetir/historico.
+    if database.is_insight_command(raw):
+        return _handle_insights(raw)
     if database.is_memory_command(raw):
         return _handle_memory(raw, apply=apply, policy=active)
 

@@ -7,8 +7,14 @@ def test_init_cria_tabelas() -> None:
         tables = {
             row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
         }
-    assert "installed_apps" in tables
-    assert "command_history" in tables
+    assert {
+        "installed_apps",
+        "command_history",
+        "activity_events",
+        "user_interests",
+        "learned_routines",
+        "app_meta",
+    } <= tables
 
 
 def test_pragmas_wal_e_synchronous_normal_em_toda_conexao() -> None:
